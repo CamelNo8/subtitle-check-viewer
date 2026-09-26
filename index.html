@@ -139,6 +139,17 @@
       .subtitle-list-section[hidden] {
         display: none;
       }
+      .subtitle-list-toolbar {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px 8px;
+        align-items: center;
+        justify-content: space-between;
+      }
+      .csv-buttons {
+        display: flex;
+        gap: 8px;
+      }
       .subtitle-list-scroll {
         flex: 1;
         min-height: 0;
@@ -265,10 +276,23 @@
         <p id="srt-status" class="srt-status" role="status"></p>
         <ul id="srt-warnings" class="srt-warnings"></ul>
         <div id="subtitle-list-section" class="subtitle-list-section" hidden>
-          <label>
-            <input id="follow-playback" type="checkbox" checked />
-            再生位置に追従
-          </label>
+          <div class="subtitle-list-toolbar">
+            <label>
+              <input id="follow-playback" type="checkbox" checked />
+              再生位置に追従
+            </label>
+            <div class="csv-buttons">
+              <button id="csv-export-button" type="button">CSV書き出し</button>
+              <button id="csv-import-button" type="button">CSV読み込み</button>
+              <input
+                id="csv-file"
+                class="visually-hidden"
+                type="file"
+                accept=".csv"
+                tabindex="-1"
+              />
+            </div>
+          </div>
           <div id="subtitle-list-scroll" class="subtitle-list-scroll">
             <table class="subtitle-list">
               <thead>

@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F6 CSV書き出し・読み込み 実装計画</title>
+<style>
+  :root { --fg: #1f2328; --muted: #59636e; --line: #d1d9e0; --bg: #ffffff; --soft: #f6f8fa;
+          --done: #1a7f37; --doing: #9a6700; --todo: #59636e; --warn: #9a6700; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #e6edf3; --muted: #9198a1; --line: #3d444d; --bg: #0d1117; --soft: #151b23;
+            --done: #3fb950; --doing: #d29922; --todo: #9198a1; --warn: #d29922; }
+  }
+  body { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; color: var(--fg);
+         background: var(--bg); line-height: 1.7; max-width: 880px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 1.6rem; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  h2 { font-size: 1.25rem; margin-top: 2em; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  h3 { font-size: 1.05rem; margin-top: 1.5em; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--soft); }
+  code, pre { font-family: ui-monospace, Menlo, monospace; background: var(--soft); border-radius: 4px; }
+  code { padding: 1px 4px; }
+  pre { padding: 12px; overflow-x: auto; }
+  .meta { color: var(--muted); }
+  .status { font-weight: bold; white-space: nowrap; }
+  .status.done { color: var(--done); }
+  .status.doing { color: var(--doing); }
+  .status.todo { color: var(--todo); }
+  .proposal { border-left: 4px solid var(--warn); padding: 4px 12px; background: var(--soft); }
+</style>
+</head>
+<body>
+
+<h1>F6 CSV書き出し・読み込み 実装計画</h1>
+<p class="meta">作成日: 2026-09-26 ／ 元資料: 仕様設計書.md（F6・データ仕様・利用の流れ）、F5 仕様書 4章</p>
+
+<h2>ステータス</h2>
+<p class="status done" id="overall-status">完了（2026-09-26。Excel での見え方・実際の書き出しをクライアントが確認済み）</p>
+
+<h2>ToDo</h2>
+<table id="todo">
+  <thead><tr><th>No.</th><th>内容</th><th>ステータス</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>【Red】CSV の文字 ⇄ 表（行×列）の変換のテストを書き、失敗を確認する</td><td class="status done">完了</td></tr>
+    <tr><td>2</td><td>【Green→Refactor】<code>src/csv.js</code> を実装し、テストを通す</td><td class="status done">完了</td></tr>
+    <tr><td>3</td><td>【Red】チェック結果 CSV の作成・読み込み・ファイル名のテストを書き、失敗を確認する</td><td class="status done">完了</td></tr>
+    <tr><td>4</td><td>【Green→Refactor】<code>src/review-csv.js</code> を実装し、テストを通す</td><td class="status done">完了</td></tr>
+    <tr><td>5</td><td>一覧を作るときに、コメント・修正案を入力欄に入れられるようにする（<code>src/subtitle-list.js</code>）</td><td class="status done">完了</td></tr>
+    <tr><td>6</td><td>ボタンを置き、書き出し・読み込み・「書き出し後に変更があるか」による確認をつなぐ（<code>index.html</code>・<code>src/main.js</code>）</td><td class="status done">完了</td></tr>
+    <tr><td>7</td><td>ブラウザで確認（書き出し → 読み込みで元に戻る、警告・エラー、確認が出る／出ない）</td><td class="status done">完了</td></tr>
+    <tr><td>8</td><td>README と仕様設計書（ボタンの位置）を今の動きに合わせる</td><td class="status done">完了</td></tr>
+    <tr><td>9</td><td>【クライアント確認】書き出した CSV を Excel で開いて文字化けしないか</td><td class="status done">完了</td></tr>
+  </tbody>
+</table>
+
+<h2>1. 目的</h2>
+<p>全字幕とコメント・修正案を CSV に書き出せるようにする（企業の方が研究者に送り返すファイル、途中でやめるときの保存）。
+書き出した CSV を読み込むと、コメント・修正案が元に戻り、続きから作業できるようにする。</p>
+
+<h2>2. 決まったこと（質問への回答）</h2>
+<table>
+  <tr><th>項目</th><th>決定</th></tr>
+  <tr><td>CSV の時刻</td><td>F7 ができるまでは一覧と同じ SRT の形（<code>00:00:01,000</code>）で書き出す。F7 でタイムコード（<code>00:00:01:00</code>）に置き換える。読み込みは「番号」で合わせるので、時刻の形が変わっても困らない</td></tr>
+  <tr><td>読み込み</td><td>作る（設計書どおり。途中でやめて再開するため）</td></tr>
+  <tr><td>ボタンの位置</td><td>右側の字幕一覧の上、「再生位置に追従」の横に [CSV書き出し] [CSV読み込み] を並べる。字幕を読み込んだ後だけ出る</td></tr>
+  <tr><td>ファイル名</td><td>[CSV書き出し] を押すと名前を入力する小窓が出る。入力した名前に <code>_check.csv</code> を付けて保存する（例: 「山田」→ <code>山田_check.csv</code>）。最初の値は <code>name</code>、2回目からは前回入力した名前（ページを開き直すと <code>name</code> に戻る）</td></tr>
+  <tr><td>コメントがある状態での読み込み</td><td>確認してから、今のコメント・修正案を全部 CSV の内容に置き換える（混ぜない）</td></tr>
+  <tr><td>文字コード</td><td>UTF-8 だけ読む（BOM はあってもなくてもよい）。Shift_JIS などはエラーにし、「Excel で上書き保存した CSV は読めない」ことを伝える</td></tr>
+</table>
+
+<h2>3. 画面</h2>
+<pre>
+[SRTファイルを選択 or ドラッグ]
+anime01.srt: 60件の字幕を読み込みました
+☑ 再生位置に追従      [CSV書き出し] [CSV読み込み]
+┌ 番号 開始 字幕 ……
+</pre>
+<ul>
+  <li>[CSV書き出し] を押すと「ファイル名を入力してください（後ろに _check.csv が付きます）」の小窓（ブラウザ標準の入力画面）が出る。OK でブラウザのダウンロードとして <code>入力した名前_check.csv</code> が保存される（保存先はブラウザの設定どおり。普通は「ダウンロード」フォルダ）。キャンセルなら何もしない</li>
+  <li>名前が空（空白だけ）や、ファイル名に使えない文字（<code>\ / : * ? " &lt; &gt; |</code>）を含むときは書き出さず、理由を表示する（ブラウザに勝手に別の文字へ置き換えられないように）。前後の空白は取り除く</li>
+  <li>[CSV読み込み] を押すとファイル選択画面が開く（<code>.csv</code> だけ選べる）</li>
+  <li>結果（「書き出しました」「○件読み込みました」、警告、エラー）は、SRT の結果と同じ場所に表示する</li>
+  <li>CSV を右側の欄にドラッグしても読み込まない（今までどおり「SRT ファイル（.srt）を選んでください」と出る）。読み込みはボタンからだけにする</li>
+</ul>
+
+<h2>4. CSV の形</h2>
+<p>設計書の「出力：CSVファイル」どおり。コメントの有無にかかわらず全字幕を1行ずつ、SRT の順に出す。</p>
+<table>
+  <tr><th>項目</th><th>決め方</th></tr>
+  <tr><td>列</td><td>番号, 開始時刻, 終了時刻, 字幕, コメント, 修正案（1行目は見出し）</td></tr>
+  <tr><td>文字コード</td><td>BOM 付き UTF-8（Excel で文字化けしないため）</td></tr>
+  <tr><td>行の区切り</td><td>CRLF（Excel・Windows で普通の区切り）</td></tr>
+  <tr><td>「字幕」の中身</td><td>SRT の本文そのまま（色タグも含む。複数行は改行のまま）</td></tr>
+  <tr><td>「 , 」「 " 」改行を含む欄</td><td>欄を <code>"</code> で囲み、中の <code>"</code> は <code>""</code> にする（CSV の一般的な決まり、RFC 4180）。Excel で開くと1つのセルの中の改行になる</td></tr>
+</table>
+<pre>
+番号,開始時刻,終了時刻,字幕,コメント,修正案
+1,"00:00:01,000","00:00:03,500","&lt;font color=""#FFFF00""&gt;こんにちは&lt;/font&gt;",表示時間が短い,こんにちは！
+2,"00:00:04,000","00:00:06,000",（拍手）,,
+</pre>
+<p class="meta">※ SRT の時刻の「,」は欄の区切りと同じ文字なので、時刻は <code>"</code> で囲んで出る（F7 のタイムコードになれば囲まれなくなる）。</p>
+
+<h2>5. 読み込みの決まり</h2>
+<p>「番号」が一致する字幕に、コメント・修正案を戻す。列は見出しの名前で探す（列の順番には頼らない）。</p>
+
+<h3>5.1 エラー（何も変えずに、今の一覧とコメントを残す）</h3>
+<table>
+  <tr><th>こんなとき</th><th>表示する内容（例）</th></tr>
+  <tr><td>UTF-8 として読めない</td><td>文字コードが UTF-8 ではないため読み込めません。Excel で上書き保存した CSV は読めないので、アプリで書き出した CSV をそのまま選んでください。</td></tr>
+  <tr><td>見出しに「番号」「字幕」「コメント」「修正案」のどれかがない</td><td>このアプリで書き出した CSV ではないようです（見出しに「コメント」がありません）。</td></tr>
+  <tr><td>ある行の列の数が見出しと合わない</td><td>5行目の列の数が見出しと合いません（見出し 6列、5行目 4列）。</td></tr>
+  <tr><td>「 " 」が閉じていない</td><td>CSV の形が崩れています（「"」が閉じていません）。</td></tr>
+  <tr><td>番号が整数でない</td><td>5行目の番号が読めません:「abc」。</td></tr>
+  <tr><td>同じ番号が2回ある</td><td>番号 12 が2回あります。</td></tr>
+  <tr><td>見出しの行しかない（字幕の行が0件）</td><td>字幕の行がありません。</td></tr>
+</table>
+
+<h3>5.2 警告（読み込みは行い、注意を表示する）</h3>
+<table>
+  <tr><th>こんなとき</th><th>表示する内容（例）</th></tr>
+  <tr><td>SRT と CSV の字幕数が違う（設計書どおり）</td><td>字幕の数が合いません（SRT 60件、CSV 58件）。SRT と CSV の組み合わせを確かめてください。</td></tr>
+  <tr><td>CSV の番号が SRT にない</td><td>61番は SRT にないため、コメント・修正案を戻していません。</td></tr>
+  <tr><td>同じ番号なのに「字幕」の中身が SRT と違う</td><td>12番: 字幕の中身が SRT と違います。</td></tr>
+</table>
+<p>「番号が SRT にない」「字幕の中身が違う」の警告は、コメント・修正案が書かれている行だけに出す（コメントのない行は、組み合わせが違っても困らないため。警告が大量に並ぶのを防ぐ）。
+「○行目」は見出しを1行目とした数え方で、Excel で開いたときの行番号と同じ。</p>
+<p class="proposal">承認済み（2026-09-26）: 3つ目の「字幕の中身が違う」警告は設計書にはない追加です。
+字幕数が同じでも、別の動画の SRT や、直した後の SRT と組み合わせてしまうと、コメントが違う字幕に付いてしまいます。
+それに気づけるよう警告を出したいです（読み込み自体は行います）。</p>
+
+<h3>5.3 その他</h3>
+<ul>
+  <li>CSV にない字幕のコメント・修正案は空になる</li>
+  <li>「開始時刻」「終了時刻」の列は読まない（番号で合わせるため）</li>
+  <li>ファイルの最後の空行は無視する</li>
+  <li>成功したら「anime01_check.csv: コメント・修正案 12件を読み込みました」と表示する（件数は F5 と同じ数え方）</li>
+</ul>
+
+<h2>6. 消える前の確認（F5 の約束）</h2>
+<p>「最後に書き出した（または読み込んだ）後に、コメント・修正案を変えたか」を覚えておき、確認を出すかを決める。</p>
+<table>
+  <tr><th>操作</th><th>確認を出すとき</th><th>確認の文言</th></tr>
+  <tr><td>ページを閉じる・再読み込み</td><td rowspan="3">書かれた字幕が1件以上 <strong>かつ</strong> 書き出し後に変更がある</td><td>ブラウザ標準（「このサイトを離れますか？」）</td></tr>
+  <tr><td>別の SRT を読み込む</td><td>書き出していないコメント・修正案があります（○件）。新しい SRT に切り替えると消えます。切り替えますか？</td></tr>
+  <tr><td>CSV を読み込む</td><td>書き出していないコメント・修正案があります（○件）。CSV の内容に置き換えますか？</td></tr>
+</table>
+<ul>
+  <li>「変更あり」になるのは: 入力欄に書いたとき</li>
+  <li>「変更なし」に戻るのは: CSV を書き出したとき、CSV を読み込んだとき、SRT を読み込んだとき</li>
+  <li>書き出した後にまた書けば、また確認が出る</li>
+</ul>
+
+<h2>7. ファイル構成（追加・変更分）</h2>
+<pre>
+src/
+├── csv.js             # CSV の文字 ⇄ 表（行×列）の変換（新規）
+├── review-csv.js      # 字幕＋コメント → チェック結果 CSV、CSV → コメントと警告、ファイル名（新規）
+├── subtitle-list.js   # 一覧を作るときに入力欄へコメント・修正案を入れる（変更）
+└── main.js            # ボタン・ダウンロード・ファイル選択・確認（変更）
+tests/
+├── csv.test.js
+└── review-csv.test.js
+</pre>
+
+<h2>8. 部品の仕様</h2>
+
+<h3>8.1 <code>src/csv.js</code></h3>
+<p><code>formatCsv(rows: string[][]): string</code> — 表を CSV の文字にする（BOM は付けない。行は CRLF で区切る）。</p>
+<table>
+  <tr><th>種別</th><th>入力</th><th>結果</th></tr>
+  <tr><td>正常系</td><td><code>[["a","b"],["c","d"]]</code></td><td><code>a,b\r\nc,d\r\n</code></td></tr>
+  <tr><td>正常系</td><td>「,」を含む欄</td><td><code>"</code> で囲む</td></tr>
+  <tr><td>正常系</td><td>「"」を含む欄</td><td>囲んで <code>""</code> にする</td></tr>
+  <tr><td>正常系</td><td>改行を含む欄</td><td>囲んで改行はそのまま</td></tr>
+  <tr><td>境界値</td><td>空の欄</td><td>何も書かない（<code>a,,b</code>）</td></tr>
+  <tr><td>境界値</td><td>行が0件</td><td>空文字</td></tr>
+  <tr><td>異常系</td><td>欄が文字列でない</td><td>TypeError</td></tr>
+</table>
+<p><code>parseCsv(text: string): string[][]</code> — CSV の文字を表にする。</p>
+<table>
+  <tr><th>種別</th><th>入力</th><th>結果</th></tr>
+  <tr><td>正常系</td><td><code>a,b\r\nc,d\r\n</code></td><td><code>[["a","b"],["c","d"]]</code></td></tr>
+  <tr><td>正常系</td><td>行の区切りが LF だけ</td><td>同じ結果</td></tr>
+  <tr><td>正常系</td><td>囲まれた欄の中の「,」「""」・改行</td><td>元の文字に戻る</td></tr>
+  <tr><td>正常系</td><td><code>formatCsv</code> の結果</td><td>元の表に戻る</td></tr>
+  <tr><td>境界値</td><td>最後に改行がない</td><td>最後の行も読む</td></tr>
+  <tr><td>境界値</td><td>空文字</td><td><code>[]</code></td></tr>
+  <tr><td>境界値</td><td>空の欄（<code>a,,b</code>）</td><td><code>["a","","b"]</code></td></tr>
+  <tr><td>異常系</td><td>「"」が閉じていない</td><td>Error</td></tr>
+  <tr><td>異常系</td><td>文字列でない</td><td>TypeError</td></tr>
+</table>
+
+<h3>8.2 <code>src/review-csv.js</code></h3>
+<p><code>buildReviewCsv(subtitles, reviews): string</code> — 4章の形の CSV（BOM 付き）を作る。</p>
+<table>
+  <tr><th>種別</th><th>入力</th><th>結果</th></tr>
+  <tr><td>正常系</td><td>字幕2件、1件にコメントあり</td><td>BOM・見出し・2行。コメントなしの行はコメント・修正案が空</td></tr>
+  <tr><td>正常系</td><td>時刻 1000ms・3500ms</td><td><code>00:00:01,000</code>・<code>00:00:03,500</code></td></tr>
+  <tr><td>正常系</td><td>色タグ・複数行の本文</td><td>そのまま入る</td></tr>
+  <tr><td>境界値</td><td>字幕0件</td><td>BOM と見出しだけ</td></tr>
+</table>
+<p><code>restoreReviews(csvText, subtitles): { reviews, warnings }</code> — BOM を取った CSV の文字から、コメント・修正案の記録（reviews.js の形）と警告を作る。5章のとおり。</p>
+<table>
+  <tr><th>種別</th><th>入力</th><th>結果</th></tr>
+  <tr><td>正常系</td><td><code>buildReviewCsv</code> の結果（BOM を除く）</td><td>元のコメント・修正案に戻り、警告なし</td></tr>
+  <tr><td>正常系</td><td>列の順番を入れ替えた CSV</td><td>見出しの名前で読める</td></tr>
+  <tr><td>境界値</td><td>コメント・修正案が空の行</td><td>記録に入らない（書かれた件数に数えない）</td></tr>
+  <tr><td>境界値</td><td>字幕数が違う</td><td>警告「字幕の数が合いません…」</td></tr>
+  <tr><td>境界値</td><td>SRT にない番号</td><td>その行は戻さず警告</td></tr>
+  <tr><td>境界値</td><td>字幕の中身が違う</td><td>コメントは戻し、警告</td></tr>
+  <tr><td>異常系</td><td>5.1 の各ケース</td><td>Error（メッセージは 5.1）</td></tr>
+</table>
+<p><code>makeReviewCsvFileName(name): string</code> — 入力された名前 → 書き出すファイル名。</p>
+<table>
+  <tr><th>種別</th><th>入力</th><th>結果</th></tr>
+  <tr><td>正常系</td><td><code>山田</code></td><td><code>山田_check.csv</code></td></tr>
+  <tr><td>境界値</td><td><code>  山田  </code>（前後に空白）</td><td><code>山田_check.csv</code></td></tr>
+  <tr><td>異常系</td><td>空文字・空白だけ</td><td>Error「ファイル名を入力してください。」</td></tr>
+  <tr><td>異常系</td><td><code>山田/2</code> など使えない文字を含む</td><td>Error「ファイル名に使えない文字が入っています:「/」…」</td></tr>
+  <tr><td>異常系</td><td>文字列でない</td><td>TypeError</td></tr>
+</table>
+
+<h2>9. 注意（今回は対処しない）</h2>
+<ul>
+  <li>研究者が Excel で開いたとき、「=」「-」「+」で始まるコメントは数式と見なされ、<code>#NAME?</code> などと表示されることがある（CSV の中身は正しいまま）。Excel の「データ → テキストまたは CSV から」で開けば、書いた文字のまま見られる</li>
+  <li>企業の方には「途中保存した CSV は Excel で上書き保存しないで」と伝える必要がある（Shift_JIS に変わると読み込めないため）</li>
+</ul>
+
+<h2>10. 動作確認の結果（2026-09-26）</h2>
+<table>
+  <tr><th>確認内容</th><th>結果</th></tr>
+  <tr><td>自動テスト・リンタ・整形チェック</td><td>148件成功（追加 38件）、指摘なし</td></tr>
+  <tr><td>書き出し</td><td>小窓の最初の値は <code>name</code>。「  山田  」→ <code>山田_check.csv</code>。先頭が BOM（EF BB BF）、4章の形（時刻・色タグ・「"」・改行を含む欄は囲まれる）。2回目の最初の値は「山田」</td></tr>
+  <tr><td>書き出しの失敗・キャンセル</td><td>「山田/2」は理由を表示して書き出さない。キャンセルでは何も起きない</td></tr>
+  <tr><td>書き出し後の確認</td><td>書き出す前はページを閉じる合図が立ち、書き出した後は立たない。その後に書き変えると、また立つ</td></tr>
+  <tr><td>読み込み</td><td>書き変えた後の読み込みで「書き出していないコメント・修正案があります（2件）。CSV の内容に置き換えますか？」。キャンセルで今のコメントが残り、OK で書き出した内容（改行を含む）に戻った。● が付き、改行のある欄は高くなった。読み込んだ後はページを閉じる合図が立たない</td></tr>
+  <tr><td>エラー</td><td>Shift_JIS の CSV、「"」が閉じていない CSV はエラーを表示し、今のコメントは残った</td></tr>
+  <tr><td>警告</td><td>字幕の数が違う・字幕の中身が違う・SRT にない番号の3つが表示され、戻せるコメントは戻った</td></tr>
+  <tr><td>別の SRT の読み込み</td><td>CSV を読み込んだ直後は確認なしで切り替わる。書き変えた後は新しい文言で確認が出て、キャンセルでコメントが残った</td></tr>
+  <tr><td>ボタンの見た目</td><td>横長の画面・狭い画面の両方で「再生位置に追従」の右に2つのボタンが並んだ</td></tr>
+</table>
+<p class="meta">ブラウザ標準の入力画面・確認画面・ダウンロードは自動操作で答えられないため、答えを差し込む形で確かめた。
+実際の小窓からの保存と Excel での見え方は、クライアントが確認済み（2026-09-26）。</p>
+
+<h2>11. 後でやること</h2>
+<table>
+  <tr><th>内容</th><th>対策の候補</th></tr>
+  <tr><td>Excel で開くと「=」「-」「+」「@」で始まるコメントが数式扱いになる（9章）</td><td>
+    (a) 企業・研究者に「データ → テキストまたは CSV から」で開くよう案内する（アプリの変更なし）<br>
+    (b) 書き出すときにその欄の先頭へ「'」などを付けて文字として扱わせ、読み込むときに取り除く（CSV の中身が少し変わる）<br>
+    どちらにするかは、アプリ完成後に研究者の使い方を聞いて決める</td></tr>
+</table>
+
+<h2>12. 今回やらないこと</h2>
+<ul>
+  <li>フレーム単位のタイムコード（F7）</li>
+  <li>CSV のドラッグでの読み込み、Shift_JIS の CSV の読み込み、ブラウザへの自動保存</li>
+</ul>
+
+</body>
+</html>

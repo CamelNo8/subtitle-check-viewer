@@ -1,5 +1,6 @@
 import { parseSubtitleMarkup } from "./subtitle-markup.js";
 import { formatSrtTime } from "./srt-time-format.js";
+import { isReviewed } from "./reviews.js";
 
 const ACTIVE_ROW_CLASS = "is-active";
 const REVIEWED_ROW_CLASS = "is-reviewed";
@@ -14,13 +15,22 @@ const REVIEW_FIELD_LABELS = [
 /**
  * 字幕一覧の行を作り直す。各行の data-index は subtitles の位置を表す。
  * 文字は textContent で入れ、HTML として解釈させない。
+ * 入力欄の高さを測るため、tbody が画面に表示されている状態で呼ぶ。
  *
  * @param {HTMLTableSectionElement} tableBody - 一覧の tbody 要素。
  * @param {import("./srt-parser.js").Subtitle[]} subtitles - 表示する字幕の一覧。
+ * @param {import("./reviews.js").Reviews} reviews - 入力欄に入れておくコメント・修正案。
  * @returns {void}
  */
-export function renderSubtitleList(tableBody, subtitles) {
-  tableBody.replaceChildren(...subtitles.map(createRow));
+export function renderSubtitleList(tableBody, subtitles, reviews) {
+  tableBody.replaceChildren(
+    ...subtitles.map((subtitle, index) => createRow(subtitle, index, reviews[subtitle.number])),
+  );
+  for (const textarea of tableBody.querySelectorAll("textarea")) {
+    if (textarea.value !== "") {
+      fitTextareaHeight(textarea);
+    }
+  }
 }
 
 /**
@@ -67,9 +77,10 @@ export function fitTextareaHeight(textarea) {
   textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
-function createRow(subtitle, index) {
+function createRow(subtitle, index, review) {
   const row = document.createElement("tr");
   row.dataset.index = String(index);
+  markReviewedRow(row, isReviewed(review));
 
   const numberCell = document.createElement("td");
   const reviewMark = document.createElement("span");
@@ -92,13 +103,13 @@ function createRow(subtitle, index) {
   const plainText = toPlainText(subtitle.text);
   textElement.textContent = plainText === "" ? EMPTY_TEXT_LABEL : plainText;
   textElement.classList.toggle("is-empty", plainText === "");
-  textCell.append(textElement, createReviewFields());
+  textCell.append(textElement, createReviewFields(review));
 
   row.append(numberCell, timeCell, textCell);
   return row;
 }
 
-function createReviewFields() {
+function createReviewFields(review) {
   const fields = document.createElement("div");
   fields.className = "review-fields";
   for (const { name, label } of REVIEW_FIELD_LABELS) {
@@ -108,6 +119,7 @@ function createReviewFields() {
     const textarea = document.createElement("textarea");
     textarea.dataset.field = name;
     textarea.rows = 1;
+    textarea.value = review?.[name] ?? "";
     labelElement.append(caption, textarea);
     fields.append(labelElement);
   }

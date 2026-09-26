@@ -14,9 +14,17 @@ import {
 } from "./subtitle-list.js";
 import { countReviewedSubtitles, isReviewed, updateReview } from "./reviews.js";
 import { calculateScrollTop } from "./scroll-position.js";
+import { buildReviewCsv, makeReviewCsvFileName, restoreReviews } from "./review-csv.js";
+import { downloadTextFile } from "./file-download.js";
 
 const PLAYER_ELEMENT_ID = "player";
 const NO_VIDEO_MESSAGE = "先に YouTube の URL を貼り付けてください。";
+const CSV_NOT_UTF8_MESSAGE =
+  "文字コードが UTF-8 ではないため読み込めません。" +
+  "Excel で上書き保存した CSV は読めないので、アプリで書き出した CSV をそのまま選んでください。";
+const CSV_FILE_NAME_PROMPT = "ファイル名を入力してください（後ろに _check.csv が付きます）";
+const INITIAL_CSV_NAME = "name";
+const CSV_MIME_TYPE = "text/csv";
 
 const videoForm = document.getElementById("video-form");
 const videoUrlInput = document.getElementById("video-url");
@@ -32,12 +40,19 @@ const subtitleListSection = document.getElementById("subtitle-list-section");
 const subtitleListScroll = document.getElementById("subtitle-list-scroll");
 const subtitleListBody = document.getElementById("subtitle-list-body");
 const followPlaybackCheckbox = document.getElementById("follow-playback");
+const csvExportButton = document.getElementById("csv-export-button");
+const csvImportButton = document.getElementById("csv-import-button");
+const csvFileInput = document.getElementById("csv-file");
 
 // 読み込んだ SRT の字幕と、字幕欄に今出している字幕
 let loadedSubtitles = [];
 let shownSubtitles = [];
 // 字幕番号 → その字幕のコメント・修正案（reviews.js の形）
 let reviews = {};
+// 最後に CSV を書き出した（または読み込んだ・SRT を読み込んだ）後に、コメント・修正案を変えたか
+let hasUnexportedChanges = false;
+// 書き出すときの名前の最初の値。2回目からは前回入力した名前にする
+let csvName = INITIAL_CSV_NAME;
 
 function showMessage(text) {
   messageArea.textContent = text;
@@ -72,14 +87,17 @@ function showSrtResult(text, warnings, isError) {
   );
 }
 
-// 書いたコメント・修正案が消える操作の前に確認する。書かれていなければ確認せず進める
-function confirmDiscardReviews() {
-  const reviewedCount = countReviewedSubtitles(reviews);
-  if (reviewedCount === 0) {
+function hasUnexportedReviews() {
+  return hasUnexportedChanges && countReviewedSubtitles(reviews) > 0;
+}
+
+// 書き出していないコメント・修正案が消える操作の前に確認する。なければ確認せず進める
+function confirmDiscardReviews(question) {
+  if (!hasUnexportedReviews()) {
     return true;
   }
   return window.confirm(
-    `書いたコメント・修正案（${reviewedCount}件）は消えます。新しい SRT に切り替えますか？`,
+    `書き出していないコメント・修正案があります（${countReviewedSubtitles(reviews)}件）。${question}`,
   );
 }
 
@@ -92,7 +110,7 @@ async function loadSubtitleFile(file) {
     showSrtResult(`${file.name}: ${error.message}`, [], true);
     return;
   }
-  if (!confirmDiscardReviews()) {
+  if (!confirmDiscardReviews("新しい SRT に切り替えると消えます。切り替えますか？")) {
     showSrtResult(
       `${file.name} の読み込みを取りやめました（今の一覧とコメントはそのままです）`,
       [],
@@ -108,11 +126,75 @@ async function loadSubtitleFile(file) {
 // 字幕を保持して一覧を作り直す（コメント・修正案は空に戻る）
 function showSubtitleList(subtitles) {
   loadedSubtitles = subtitles;
-  reviews = {};
-  renderSubtitleList(subtitleListBody, subtitles);
   const hasSubtitles = subtitles.length > 0;
   subtitleListSection.hidden = !hasSubtitles;
   subtitlePanel.classList.toggle("has-subtitles", hasSubtitles);
+  showReviews({});
+}
+
+// コメント・修正案を差し替えて一覧を作り直す。差し替えた内容は「書き出し済み」とみなす
+function showReviews(newReviews) {
+  reviews = newReviews;
+  hasUnexportedChanges = false;
+  renderSubtitleList(subtitleListBody, loadedSubtitles, reviews);
+  // 行を作り直すと強調が消えるので、次の描画で今の字幕を強調し直す
+  shownSubtitles = [];
+}
+
+function exportReviewCsv() {
+  const name = window.prompt(CSV_FILE_NAME_PROMPT, csvName);
+  // キャンセルされたら何もしない
+  if (name === null) {
+    return;
+  }
+  let fileName;
+  try {
+    fileName = makeReviewCsvFileName(name);
+  } catch (error) {
+    showSrtResult(`書き出せませんでした: ${error.message}`, [], true);
+    return;
+  }
+  csvName = name.trim();
+  downloadTextFile(fileName, buildReviewCsv(loadedSubtitles, reviews), CSV_MIME_TYPE);
+  hasUnexportedChanges = false;
+  showSrtResult(
+    `${fileName} を書き出しました（コメント・修正案 ${countReviewedSubtitles(reviews)}件）`,
+    [],
+    false,
+  );
+}
+
+async function loadReviewFile(file) {
+  let csvText;
+  try {
+    csvText = decodeUtf8(await file.arrayBuffer());
+  } catch {
+    // decodeUtf8 のメッセージは SRT 向けなので、CSV 向けの説明に置き換える
+    showSrtResult(`${file.name}: ${CSV_NOT_UTF8_MESSAGE}`, [], true);
+    return;
+  }
+  let restored;
+  try {
+    restored = restoreReviews(csvText, loadedSubtitles);
+  } catch (error) {
+    // 読み込みに失敗しただけでコメントが消えないよう、今のコメントは残す
+    showSrtResult(`${file.name}: ${error.message}`, [], true);
+    return;
+  }
+  if (!confirmDiscardReviews("CSV の内容に置き換えますか？")) {
+    showSrtResult(
+      `${file.name} の読み込みを取りやめました（今のコメントはそのままです）`,
+      [],
+      false,
+    );
+    return;
+  }
+  showReviews(restored.reviews);
+  showSrtResult(
+    `${file.name}: コメント・修正案 ${countReviewedSubtitles(reviews)}件を読み込みました`,
+    restored.warnings,
+    false,
+  );
 }
 
 function isSameSubtitles(left, right) {
@@ -243,15 +325,33 @@ subtitleListBody.addEventListener("input", (event) => {
   const row = textarea.closest("tr[data-index]");
   const { number } = loadedSubtitles[Number(row.dataset.index)];
   reviews = updateReview(reviews, number, textarea.dataset.field, textarea.value);
+  hasUnexportedChanges = true;
   markReviewedRow(row, isReviewed(reviews[number]));
   fitTextareaHeight(textarea);
 });
 
-// コメント・修正案があるときにページを閉じる・再読み込みすると、ブラウザ標準の確認を出す
+// 書き出していないコメント・修正案があるときにページを閉じる・再読み込みすると、
+// ブラウザ標準の確認を出す
 window.addEventListener("beforeunload", (event) => {
-  if (countReviewedSubtitles(reviews) > 0) {
+  if (hasUnexportedReviews()) {
     event.preventDefault();
   }
+});
+
+csvExportButton.addEventListener("click", exportReviewCsv);
+
+// 見た目のそろったボタンから、隠してあるファイル選択を開く
+csvImportButton.addEventListener("click", () => csvFileInput.click());
+
+csvFileInput.addEventListener("change", () => {
+  const [file] = csvFileInput.files;
+  // 選択画面をキャンセルしたときは何もしない
+  if (file === undefined) {
+    return;
+  }
+  loadReviewFile(file);
+  // 同じファイルを選び直しても change が起きるように空にしておく
+  csvFileInput.value = "";
 });
 
 // 追従を ON にしたら、すぐ今の行を見える位置に出す
