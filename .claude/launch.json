@@ -3,9 +3,10 @@
   "configurations": [
     {
       "name": "static",
-      "runtimeExecutable": "uv",
-      "runtimeArgs": ["run", "--no-project", "python", "-m", "http.server", "8000"],
-      "port": 8000
+      "runtimeExecutable": "sh",
+      "runtimeArgs": ["-c", "uv run --no-project python -m http.server \"${PORT:-8000}\""],
+      "port": 8000,
+      "autoPort": true
     }
   ]
 }
