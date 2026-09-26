@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F4 字幕一覧とジャンプ 実装計画</title>
+<style>
+  :root { --fg: #1f2328; --muted: #59636e; --line: #d1d9e0; --bg: #ffffff; --soft: #f6f8fa;
+          --done: #1a7f37; --doing: #9a6700; --todo: #59636e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #e6edf3; --muted: #9198a1; --line: #3d444d; --bg: #0d1117; --soft: #151b23;
+            --done: #3fb950; --doing: #d29922; --todo: #9198a1; }
+  }
+  body { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; color: var(--fg);
+         background: var(--bg); line-height: 1.7; max-width: 880px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 1.6rem; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  h2 { font-size: 1.25rem; margin-top: 2em; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--soft); }
+  code, pre { font-family: ui-monospace, Menlo, monospace; background: var(--soft); border-radius: 4px; }
+  code { padding: 1px 4px; }
+  pre { padding: 12px; overflow-x: auto; }
+  .meta { color: var(--muted); }
+  .status { font-weight: bold; white-space: nowrap; }
+  .status.done { color: var(--done); }
+  .status.doing { color: var(--doing); }
+  .status.todo { color: var(--todo); }
+</style>
+</head>
+<body>
+
+<h1>F4 字幕一覧とジャンプ 実装計画</h1>
+<p class="meta">作成日: 2026-09-26 ／ 元資料: 仕様設計書.md（F4・画面構成）</p>
+
+<h2>ステータス</h2>
+<p class="status done" id="overall-status">完了（2026-09-26）</p>
+
+<h2>ToDo</h2>
+<table id="todo">
+  <thead><tr><th>No.</th><th>内容</th><th>ステータス</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>【Red】ミリ秒を SRT の時刻の文字（<code>00:01:02,345</code>）にする関数のテストを書き、失敗を確認する</td><td class="status done">完了</td></tr>
+    <tr><td>2</td><td>【Green→Refactor】<code>src/srt-time-format.js</code> を実装し、テストを通す</td><td class="status done">完了</td></tr>
+    <tr><td>3</td><td>【Red】今の行が見えるようにするためのスクロール位置を計算する関数のテストを書き、失敗を確認する</td><td class="status done">完了</td></tr>
+    <tr><td>4</td><td>【Green→Refactor】<code>src/scroll-position.js</code> を実装し、テストを通す</td><td class="status done">完了</td></tr>
+    <tr><td>5</td><td><code>src/youtube-player.js</code> に指定の時刻へ移動する関数を追加する（止まっていたら止まったまま）</td><td class="status done">完了</td></tr>
+    <tr><td>6</td><td><code>src/subtitle-list.js</code>（一覧の描画・今の行の強調）を作り、<code>index.html</code>・<code>src/main.js</code> につなぐ（選択の枠を小さくする・追従スイッチ）</td><td class="status done">完了</td></tr>
+    <tr><td>7</td><td>ブラウザで確認（一覧の表示・クリック移動・再生中/一時停止中/未再生・強調・重なり・追従 ON/OFF・読み込み直し・実SRT 1件の件数・画面幅）</td><td class="status done">完了</td></tr>
+    <tr><td>8</td><td>README を更新する</td><td class="status done">完了</td></tr>
+  </tbody>
+</table>
+
+<h2>1. 目的</h2>
+<p>読み込んだ全字幕を動画の右側に一覧で表示する。行をクリックするとその字幕の開始時刻へ移動し、再生中の字幕の行を色で目立たせる。
+設計書の「区間の繰り返し再生」は作らず、このジャンプで代用する。</p>
+
+<h2>2. 決まったこと（質問への回答）</h2>
+<table>
+  <tr><th>項目</th><th>決定</th></tr>
+  <tr><td>一覧の時刻</td><td>当面は SRT の時刻のまま（<code>00:01:02,345</code>）。F7 でタイムコードに置き換える</td></tr>
+  <tr><td>一覧の列</td><td>番号・開始時刻・字幕（設計書の画面どおり。コメント・修正案は F5 で追加）</td></tr>
+  <tr><td>選択 or ドラッグの枠</td><td>一覧を出したら一覧の上に1行の小さな枠として残す（読み込み直し用）。右側の欄全体へのドラッグも今までどおり受け付ける</td></tr>
+  <tr><td>自動スクロール</td><td>一覧の上に「再生位置に追従」のチェックを置く（最初は ON）。ON のときだけ、今の行が見えなくなったら一覧をスクロールする</td></tr>
+  <tr><td>クリックで移動した後</td><td>今の状態のまま（再生中なら続けて再生、止まっていれば止まったまま）</td></tr>
+</table>
+
+<h2>3. 画面</h2>
+<pre>
+┌──────────────────────────┬───────────────────────────────┐
+│                          │ [ SRTファイルを選択 or ドラッグ ]  │ ← 1行の小さな枠
+│       YouTube動画        │ ドラえもん.srt: 387件… ・警告     │
+│                          │ ☑ 再生位置に追従                  │
+│                          │ 番号 開始          字幕           │
+├──────────────────────────┤  1  00:00:00,000  ドラえもん登場…  │
+│  （ドラえもん）…          │▶ 2  00:00:04,177  未来の国から…   │ ← 今の行は色つき
+└──────────────────────────┴───────────────────────────────┘
+                                  ↑ 一覧だけがスクロールする（欄の高さは動画＋字幕欄と同じ）
+</pre>
+<ul>
+  <li>一覧の字幕はタグを消した文字で表示し、色はつけない（白い背景で黄色などが読めなくなるため）。改行はそのまま改行する</li>
+  <li>本文が空の字幕は、灰色で「（本文なし）」と表示する</li>
+  <li>今の字幕の行は背景色を変える。時間が重なっているときは両方の行を強調する</li>
+  <li>行のどこをクリックしても移動する。キーボードでも操作できるよう、開始時刻をボタンにする（Tab で選んで Enter）</li>
+  <li>動画を読み込む前に行をクリックしたら、動画のメッセージ欄に「先に YouTube の URL を貼り付けてください。」と出す</li>
+  <li>SRT の読み込みがエラーになったら一覧を消し、選択の枠を大きな表示に戻す</li>
+  <li>画面の横幅が 900px より狭いときは、右側の欄を動画の下に並べ（1列）、欄の高さを画面の高さの 60% にする。警告は3行ほどの高さまでにして、それ以上は警告の中でスクロールする（実装中に追加: 狭い画面で読み込み結果と警告が欄の高さを使い切り、一覧が見えなくなったため）</li>
+</ul>
+
+<h2>4. ファイル構成（追加・変更分）</h2>
+<pre>
+src/
+├── srt-time-format.js   # ミリ秒 → "00:01:02,345"（新規。F7 で置き換え予定）
+├── scroll-position.js   # 今の行を見せるためのスクロール位置の計算（新規）
+├── subtitle-list.js     # 一覧の描画・今の行の強調（新規・画面の部品）
+├── youtube-player.js    # 指定の時刻へ移動する関数を追加（変更）
+└── main.js              # 一覧・追従スイッチ・クリック移動のつなぎ込み（変更）
+tests/
+├── srt-time-format.test.js
+└── scroll-position.test.js
+</pre>
+
+<h2>5. 部品の仕様</h2>
+
+<h3>5.1 <code>formatSrtTime(ms: number): string</code>（src/srt-time-format.js）</h3>
+<table>
+  <tr><th>種別</th><th>入力</th><th>結果</th></tr>
+  <tr><td>正常系</td><td>62345</td><td><code>00:01:02,345</code></td></tr>
+  <tr><td>正常系</td><td>3723004（1時間2分3秒4ミリ秒）</td><td><code>01:02:03,004</code></td></tr>
+  <tr><td>境界値</td><td>0</td><td><code>00:00:00,000</code></td></tr>
+  <tr><td>異常系</td><td>負の数</td><td><code>RangeError</code></td></tr>
+  <tr><td>異常系</td><td>整数でない（1.5、<code>NaN</code>）・数値でない</td><td><code>TypeError</code></td></tr>
+</table>
+
+<h3>5.2 <code>calculateScrollTop(row, view): number | null</code>（src/scroll-position.js）</h3>
+<p><code>row = { top, height }</code>（一覧の中での行の位置）、<code>view = { scrollTop, height }</code>（今のスクロール位置と見えている高さ）。
+行が全部見えていれば <code>null</code>（動かさない）。上にはみ出していれば行の上端を、下にはみ出していれば行の下端を見える範囲に合わせるスクロール位置を返す。</p>
+<table>
+  <tr><th>種別</th><th>入力</th><th>結果</th></tr>
+  <tr><td>正常系</td><td>行が見える範囲の中</td><td><code>null</code></td></tr>
+  <tr><td>正常系</td><td>行が見える範囲より下</td><td>行の下端が見える範囲の下端に来る位置</td></tr>
+  <tr><td>正常系</td><td>行が見える範囲より上</td><td>行の上端の位置</td></tr>
+  <tr><td>境界値</td><td>行の下端が見える範囲の下端ちょうど</td><td><code>null</code></td></tr>
+  <tr><td>境界値</td><td>行が見える範囲より高い</td><td>行の上端の位置（上端を優先して見せる）</td></tr>
+  <tr><td>異常系</td><td>数値でない値を含む</td><td><code>TypeError</code></td></tr>
+</table>
+
+<h3>5.3 <code>seekToMs(ms: number): boolean</code>（src/youtube-player.js に追加）</h3>
+<ul>
+  <li>指定の時刻へ移動する。まだ動画を表示していなければ何もせず <code>false</code> を返す</li>
+  <li>再生中・バッファ中・一時停止中: <code>seekTo</code> で移動する（一時停止中は止まったまま。ブラウザで確認済み）</li>
+  <li>未再生・頭出し済み・再生終了: 開始時刻付きで頭出しをやり直す（<code>cueVideoById({ videoId, startSeconds })</code>）。止まったままで、再生時刻も移動先になる。
+    <br>実装中に変更（2026-09-26）: 当初は「<code>seekTo</code> の後に一時停止」の予定だったが、ブラウザで試すと未再生の状態では <code>seekTo</code> が予約されるだけで、2回目以降の移動が再生時刻に反映されず、字幕欄と一覧が古い字幕のまま残った。頭出しのやり直しなら毎回正しく反映されることを確認した</li>
+  <li>制約: 未再生のまま移動したときは、動画の画面にはその場面ではなくサムネイルが出る（再生すると移動先から始まる）。字幕欄・一覧は移動先の字幕を示す</li>
+  <li>YouTube とのやりとりなので自動テストは書かず、ブラウザで確認する</li>
+</ul>
+
+<h3>5.4 一覧の描画（src/subtitle-list.js）</h3>
+<ul>
+  <li><code>renderSubtitleList(tableBody, subtitles)</code>: 行を作り直す（SRT を読み込んだときだけ呼ぶ）</li>
+  <li><code>highlightSubtitleRows(tableBody, subtitles, activeSubtitles)</code>: 今の行の強調を付け替え、強調した最初の行の要素を返す（追従のスクロールに使う）。行と字幕を対応させるため、一覧を作ったときの <code>subtitles</code> も受け取る（実装中に引数を追加）</li>
+  <li>字幕の文字は textContent で入れる（HTML として解釈させない）。タグの除去は F3 の <code>parseSubtitleMarkup</code> を使い回す</li>
+</ul>
+
+<h2>6. リスクと確認</h2>
+<ul>
+  <li>YouTube の移動が開始時刻ちょうどに止まらず、少し手前に止まると、字幕欄に一つ前の字幕が出てしまう可能性がある。ToDo 7 で確かめ、起きたら対処を相談する</li>
+</ul>
+
+<h2>7. 動作確認の結果（2026-09-26）</h2>
+<table>
+  <tr><th>確認内容</th><th>結果</th></tr>
+  <tr><td>自動テスト・リンタ・整形チェック</td><td>95件成功（追加 13件）、指摘なし</td></tr>
+  <tr><td>実SRT（ドラえもん）の一覧</td><td>387行。番号・開始時刻・字幕が正しく並ぶ</td></tr>
+  <tr><td>動画の前に行をクリック</td><td>「先に YouTube の URL を貼り付けてください。」</td></tr>
+  <tr><td>未再生のまま #10 → #40 → #5 をクリック</td><td>毎回ちょうど開始時刻へ移動し、止まったまま。字幕欄・強調も移動先（#5 は #4 と重なり2行強調）。最初の方式ではここが失敗したため 5.3 のとおり変更</td></tr>
+  <tr><td>再生中に #100 をクリック</td><td>移動して再生が続いた</td></tr>
+  <tr><td>一時停止中に #200 をクリック</td><td>ちょうど 548.455秒へ移動し止まったまま。追従で #200 が見える位置へスクロール</td></tr>
+  <tr><td>追従 OFF で #300 をクリック / ON に戻す</td><td>強調は付くがスクロールしない / すぐ #300 が見える位置へスクロール</td></tr>
+  <tr><td>形の崩れた SRT を読み込み直す</td><td>一覧・字幕欄が消え、選択の枠が大きな表示に戻り、エラー表示</td></tr>
+  <tr><td>1280px 幅</td><td>2列。右側の欄は左側と同じ高さ（501px）、一覧だけがスクロールし、ページはスクロールしない</td></tr>
+  <tr><td>狭い画面</td><td>1列（動画の下に一覧）。一覧が見える高さで表示。見出しの折り返しも直した</td></tr>
+</table>
+
+<h2>8. 今回やらないこと</h2>
+<ul>
+  <li>コメント・修正案の入力欄（F5）、タイムコード表示（F7）、CSV（F6）</li>
+  <li>区間の繰り返し再生（設計書で対象外）</li>
+</ul>
+
+</body>
+</html>

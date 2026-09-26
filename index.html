@@ -68,9 +68,18 @@
         line-height: var(--line-height);
         text-align: center;
       }
+      /* contain: size で欄の中身が高さを決めないようにし、左側（動画＋字幕欄）と同じ高さにそろえる */
       .subtitle-panel {
         display: flex;
         flex-direction: column;
+        contain: size;
+      }
+      .subtitle-panel.has-subtitles .srt-drop-zone {
+        flex: none;
+        min-height: 0;
+        padding: 4px 8px;
+        border-width: 1px;
+        font-size: 0.9rem;
       }
       .srt-drop-zone {
         display: flex;
@@ -109,12 +118,87 @@
       .srt-status.is-error {
         color: #cf222e;
       }
+      /* 警告が多くても一覧の場所を奪わないよう、3行ほどでスクロールさせる */
       .srt-warnings {
+        flex: none;
+        max-height: 4.5em;
         margin: 4px 0 0;
+        overflow: auto;
         color: #9a6700;
       }
       .srt-warnings:empty {
         display: none;
+      }
+      .subtitle-list-section {
+        display: flex;
+        flex: 1;
+        flex-direction: column;
+        min-height: 0;
+        margin-top: 8px;
+      }
+      .subtitle-list-section[hidden] {
+        display: none;
+      }
+      .subtitle-list-scroll {
+        flex: 1;
+        min-height: 0;
+        margin-top: 4px;
+        overflow: auto;
+        border: 1px solid #d1d9e0;
+      }
+      .subtitle-list {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 0.9rem;
+      }
+      .subtitle-list th {
+        position: sticky;
+        top: 0;
+        background: #f6f8fa;
+        text-align: left;
+        white-space: nowrap;
+      }
+      .subtitle-list th,
+      .subtitle-list td {
+        padding: 4px 8px;
+        border-bottom: 1px solid #d1d9e0;
+        vertical-align: top;
+      }
+      .subtitle-list td:nth-child(-n + 2) {
+        white-space: nowrap;
+      }
+      .subtitle-list td:nth-child(3) {
+        white-space: pre-line;
+      }
+      .subtitle-list td.is-empty {
+        color: #8c959f;
+      }
+      .subtitle-list tbody tr {
+        cursor: pointer;
+      }
+      .subtitle-list tbody tr:hover {
+        background: #f6f8fa;
+      }
+      .subtitle-list tbody tr.is-active {
+        background: #fff8c5;
+      }
+      /* 狭い画面では横に並べると一覧の高さが足りないので、動画の下に並べる */
+      @media (max-width: 900px) {
+        .workspace {
+          grid-template-columns: minmax(0, 1fr);
+        }
+        .subtitle-panel {
+          height: 60vh;
+        }
+      }
+      .jump-button {
+        padding: 0;
+        border: 0;
+        background: none;
+        color: #0969da;
+        font: inherit;
+        font-variant-numeric: tabular-nums;
+        cursor: pointer;
       }
     </style>
   </head>
@@ -145,6 +229,24 @@
         </label>
         <p id="srt-status" class="srt-status" role="status"></p>
         <ul id="srt-warnings" class="srt-warnings"></ul>
+        <div id="subtitle-list-section" class="subtitle-list-section" hidden>
+          <label>
+            <input id="follow-playback" type="checkbox" checked />
+            再生位置に追従
+          </label>
+          <div id="subtitle-list-scroll" class="subtitle-list-scroll">
+            <table class="subtitle-list">
+              <thead>
+                <tr>
+                  <th>番号</th>
+                  <th>開始</th>
+                  <th>字幕</th>
+                </tr>
+              </thead>
+              <tbody id="subtitle-list-body"></tbody>
+            </table>
+          </div>
+        </div>
       </aside>
     </main>
     <script type="module" src="src/main.js"></script>

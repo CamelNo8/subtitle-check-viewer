@@ -1,13 +1,16 @@
 import { extractVideoId } from "./youtube-url.js";
 import { describePlayerError } from "./player-error-message.js";
-import { getCurrentTimeMs, showVideo } from "./youtube-player.js";
+import { getCurrentTimeMs, seekToMs, showVideo } from "./youtube-player.js";
 import { decodeUtf8 } from "./utf8-decoder.js";
 import { parseSrt } from "./srt-parser.js";
 import { pickSrtFile } from "./srt-file-picker.js";
 import { findActiveSubtitles } from "./active-subtitles.js";
 import { renderSubtitleBar } from "./subtitle-bar.js";
+import { highlightSubtitleRows, renderSubtitleList } from "./subtitle-list.js";
+import { calculateScrollTop } from "./scroll-position.js";
 
 const PLAYER_ELEMENT_ID = "player";
+const NO_VIDEO_MESSAGE = "先に YouTube の URL を貼り付けてください。";
 
 const videoForm = document.getElementById("video-form");
 const videoUrlInput = document.getElementById("video-url");
@@ -19,6 +22,10 @@ const subtitlePanel = document.getElementById("subtitle-panel");
 const srtStatus = document.getElementById("srt-status");
 const srtWarningList = document.getElementById("srt-warnings");
 const subtitleBar = document.getElementById("subtitle-bar");
+const subtitleListSection = document.getElementById("subtitle-list-section");
+const subtitleListScroll = document.getElementById("subtitle-list-scroll");
+const subtitleListBody = document.getElementById("subtitle-list-body");
+const followPlaybackCheckbox = document.getElementById("follow-playback");
 
 // 読み込んだ SRT の字幕と、字幕欄に今出している字幕
 let loadedSubtitles = [];
@@ -60,27 +67,63 @@ function showSrtResult(text, warnings, isError) {
 async function loadSubtitleFile(file) {
   try {
     const { subtitles, warnings } = parseSrt(decodeUtf8(await file.arrayBuffer()));
-    loadedSubtitles = subtitles;
+    showSubtitleList(subtitles);
     showSrtResult(`${file.name}: ${subtitles.length}件の字幕を読み込みました`, warnings, false);
   } catch (error) {
-    loadedSubtitles = [];
+    showSubtitleList([]);
     showSrtResult(`${file.name}: ${error.message}`, [], true);
   }
+}
+
+// 字幕を保持して一覧を作り直す。字幕がなければ一覧を隠し、選択の枠を大きな表示に戻す
+function showSubtitleList(subtitles) {
+  loadedSubtitles = subtitles;
+  renderSubtitleList(subtitleListBody, subtitles);
+  const hasSubtitles = subtitles.length > 0;
+  subtitleListSection.hidden = !hasSubtitles;
+  subtitlePanel.classList.toggle("has-subtitles", hasSubtitles);
 }
 
 function isSameSubtitles(left, right) {
   return left.length === right.length && left.every((subtitle, index) => subtitle === right[index]);
 }
 
-// 描画のたびに再生時刻を読み、表示すべき字幕が変わったときだけ字幕欄を描き直す
-function updateSubtitleBar() {
+// 一覧の上の見出し行（固定表示）に隠れない範囲で、行が見えるようにスクロールする
+function scrollRowIntoView(row) {
+  const headerHeight = subtitleListScroll.querySelector("thead").offsetHeight;
+  const rowTop =
+    row.getBoundingClientRect().top -
+    subtitleListScroll.getBoundingClientRect().top +
+    subtitleListScroll.scrollTop;
+  const scrollTop = calculateScrollTop(
+    { top: rowTop - headerHeight, height: row.offsetHeight },
+    {
+      scrollTop: subtitleListScroll.scrollTop,
+      height: subtitleListScroll.clientHeight - headerHeight,
+    },
+  );
+  if (scrollTop !== null) {
+    subtitleListScroll.scrollTop = scrollTop;
+  }
+}
+
+function showActiveSubtitles(activeSubtitles) {
+  renderSubtitleBar(subtitleBar, activeSubtitles);
+  const firstActiveRow = highlightSubtitleRows(subtitleListBody, loadedSubtitles, activeSubtitles);
+  if (followPlaybackCheckbox.checked && firstActiveRow !== null) {
+    scrollRowIntoView(firstActiveRow);
+  }
+}
+
+// 描画のたびに再生時刻を読み、表示すべき字幕が変わったときだけ字幕欄と一覧を更新する
+function updateActiveSubtitles() {
   const timeMs = getCurrentTimeMs();
   const activeSubtitles = timeMs === null ? [] : findActiveSubtitles(loadedSubtitles, timeMs);
   if (!isSameSubtitles(activeSubtitles, shownSubtitles)) {
-    renderSubtitleBar(subtitleBar, activeSubtitles);
+    showActiveSubtitles(activeSubtitles);
     shownSubtitles = activeSubtitles;
   }
-  requestAnimationFrame(updateSubtitleBar);
+  requestAnimationFrame(updateActiveSubtitles);
 }
 
 function handleSrtFiles(files) {
@@ -140,4 +183,24 @@ subtitlePanel.addEventListener("drop", (event) => {
 window.addEventListener("dragover", (event) => event.preventDefault());
 window.addEventListener("drop", (event) => event.preventDefault());
 
-requestAnimationFrame(updateSubtitleBar);
+// 行のどこをクリックしても、その字幕の開始時刻へ移動する
+subtitleListBody.addEventListener("click", (event) => {
+  const row = event.target.closest("tr[data-index]");
+  if (row === null) {
+    return;
+  }
+  const subtitle = loadedSubtitles[Number(row.dataset.index)];
+  if (!seekToMs(subtitle.startMs)) {
+    showMessage(NO_VIDEO_MESSAGE);
+  }
+});
+
+// 追従を ON にしたら、すぐ今の行を見える位置に出す
+followPlaybackCheckbox.addEventListener("change", () => {
+  const firstActiveRow = subtitleListBody.querySelector("tr.is-active");
+  if (followPlaybackCheckbox.checked && firstActiveRow !== null) {
+    scrollRowIntoView(firstActiveRow);
+  }
+});
+
+requestAnimationFrame(updateActiveSubtitles);
