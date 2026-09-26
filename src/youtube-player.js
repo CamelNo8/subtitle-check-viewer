@@ -55,19 +55,17 @@ export function loadYoutubeApi() {
 export async function showVideo(elementId, videoId, onError) {
   await loadYoutubeApi();
   if (playerPromise === null) {
-    playerPromise = createPlayer(elementId, videoId, onError);
-    await playerPromise;
-    return;
+    playerPromise = createEmptyPlayer(elementId, onError);
   }
   const player = await playerPromise;
   player.cueVideoById(videoId);
 }
 
-// 準備ができる前に動画を差し替えると失敗するため、onReady まで待ってから完了する
-function createPlayer(elementId, videoId, onError) {
+// 動画を指定して作ると、存在しない動画のとき onReady も onError も返らず待ち続けてしまう。
+// そのため動画なしで作り、onReady の後に cueVideoById で読み込む。
+function createEmptyPlayer(elementId, onError) {
   return new Promise((resolve) => {
     const player = new window.YT.Player(elementId, {
-      videoId,
       playerVars: { playsinline: 1 },
       events: {
         onReady: () => resolve(player),

@@ -34,7 +34,7 @@
 <p class="meta">作成日: 2026-09-26 ／ 元資料: 字幕チェック用Webアプリ 仕様設計書（F1）</p>
 
 <h2>ステータス</h2>
-<p class="status done" id="overall-status">完了（2026-09-26）</p>
+<p class="status done" id="overall-status">完了（2026-09-26、不具合修正を含む）</p>
 
 <h2>ToDo</h2>
 <table id="todo">
@@ -49,6 +49,8 @@
     <tr><td>7</td><td><code>index.html</code> と <code>src/main.js</code>（画面と部品のつなぎ込み）を実装する</td><td class="status done">完了</td></tr>
     <tr><td>8</td><td>ブラウザで動作確認（正常な動画・不正URL・埋め込み禁止動画）</td><td class="status done">完了</td></tr>
     <tr><td>9</td><td>README に「テストの動かし方」「ローカルでの開き方」を書く</td><td class="status done">完了</td></tr>
+    <tr><td>10</td><td>【不具合修正】最初の動画が存在しないとアプリが固まる問題を直す（<code>src/youtube-player.js</code>、10章）</td><td class="status done">完了</td></tr>
+    <tr><td>11</td><td>【不具合修正】ブラウザで再確認（最初に存在しない動画 → エラー表示 → 正しい動画に切り替わる、正常な動画の再生、2本目への差し替え）</td><td class="status done">完了</td></tr>
   </tbody>
 </table>
 
@@ -160,7 +162,7 @@ subtitle-check-viewer/
       <tr><td>15秒以内に準備ができない（回線が遅い・YouTube側の一時的な不調）</td>
         <td>YouTubeのプレイヤーの準備に時間がかかりすぎたため中止しました。しばらく待ってからページを再読み込みしてください。</td></tr>
     </table></li>
-  <li><code>showVideo(elementId, videoId, onError): Promise&lt;void&gt;</code> — 1回目はプレイヤーを作り、2回目以降は同じプレイヤーで動画を差し替える（<code>cueVideoById</code>＝読み込むだけで自動再生はしない）。エラー時は <code>onError(code)</code> を呼ぶ</li>
+  <li><code>showVideo(elementId, videoId, onError): Promise&lt;void&gt;</code> — 1回目は<strong>動画を指定せずに空のプレイヤーを作り</strong>、準備完了（<code>onReady</code>）を待つ。そのあと毎回 <code>cueVideoById</code>（読み込むだけで自動再生はしない）で動画を表示する。エラー時は <code>onError(code)</code> を呼ぶ。<br>    作るときに動画を指定しないのは、存在しない動画を指定すると YouTube が <code>onReady</code> も <code>onError</code> も返さず、待ち続けてしまうため（10章）</li>
   <li>後のステップ（F3・F4）で再生時刻の取得と移動が必要になるが、それは F3・F4 で追加する（今は作らない）</li>
 </ul>
 <p>このファイルはYouTube（外部）とのやりとりだけなので、自動テストは書かずブラウザで確認する（規約1.4：外部とのやりとりはロジックと分ける）。
@@ -219,7 +221,22 @@ subtitle-check-viewer/
 </table>
 <p>気づいた点: 今のYouTubeは、存在しない動画にもエラーコード150を返すことがある。150 のメッセージ（「埋め込み禁止・年齢制限など」）では削除・非公開の可能性が伝わらないため、文言を見直すかをクライアントに確認する。<br>→ 2026-09-26 クライアント承認。150 の文言に「削除・非公開」を加えた（4.2 の表を更新）。</p>
 
-<h2>9. 今回やらないこと</h2>
+<h2>10. 不具合修正: 最初の動画が存在しないとアプリが固まる（2026-09-26）</h2>
+<ul>
+  <li>症状: ページを開いて最初に存在しない動画（例: <code>aaaaaaaaaaa</code>）を読み込むと、黒い画面のままメッセージが出ず、その後正しいURLを入れても切り替わらない</li>
+  <li>原因: プレイヤー作成時に動画を指定すると、存在しない動画では YouTube が <code>onReady</code> も <code>onError</code> も返さない。<code>onReady</code> を待ち続けるため、以降の読み込みも止まる</li>
+  <li>直し方: 動画を指定せずに空のプレイヤーを作り、<code>onReady</code> の後に <code>cueVideoById</code> で動画を読み込む（4.3）。ブラウザでの試験で、この方法ならエラー150が届き、その後の正しい動画にも切り替わることを確認済み</li>
+  <li>テスト: YouTube とのやりとりの部分なので自動テストは書かず、ブラウザで確認する（規約1.4）</li>
+</ul>
+<table>
+  <tr><th>修正後の確認内容</th><th>結果</th></tr>
+  <tr><td>ページを開いて最初に存在しない動画</td><td>エラーコード150のメッセージが出た</td></tr>
+  <tr><td>続けて正しい動画</td><td>切り替わり、メッセージが消え、再生できた</td></tr>
+  <tr><td>ページを開いて最初に正しい動画 → 2本目に差し替え</td><td>プレイヤーは1つのまま動画が切り替わった</td></tr>
+  <tr><td>自動テスト・リンタ・整形チェック</td><td>24件成功、指摘なし</td></tr>
+</table>
+
+<h2>11. 今回やらないこと</h2>
 <ul>
   <li>字幕・一覧・CSV・fps選択（F2〜F7）</li>
   <li>再生時刻の取得・移動（F3・F4で追加）</li>
