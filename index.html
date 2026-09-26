@@ -167,11 +167,46 @@
       .subtitle-list td:nth-child(-n + 2) {
         white-space: nowrap;
       }
-      .subtitle-list td:nth-child(3) {
+      .subtitle-text {
         white-space: pre-line;
       }
-      .subtitle-list td.is-empty {
+      .subtitle-text.is-empty {
         color: #8c959f;
+      }
+      .review-mark {
+        margin-left: 4px;
+        color: #0969da;
+        visibility: hidden;
+      }
+      .subtitle-list tr.is-reviewed .review-mark {
+        visibility: visible;
+      }
+      .review-fields {
+        display: grid;
+        gap: 4px;
+        margin-top: 4px;
+      }
+      .review-fields label {
+        display: grid;
+        grid-template-columns: 4em minmax(0, 1fr);
+        gap: 6px;
+        align-items: start;
+        color: #59636e;
+        font-size: 0.8rem;
+        cursor: text;
+      }
+      .review-fields textarea {
+        box-sizing: border-box;
+        width: 100%;
+        padding: 2px 6px;
+        border: 1px solid #d1d9e0;
+        border-radius: 4px;
+        color: #1f2328;
+        font: inherit;
+        font-size: 0.9rem;
+        line-height: 1.4;
+        resize: none;
+        overflow: hidden;
       }
       .subtitle-list tbody tr {
         cursor: pointer;

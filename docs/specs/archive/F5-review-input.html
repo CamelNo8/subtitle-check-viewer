@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F5 コメント入力 実装計画</title>
+<style>
+  :root { --fg: #1f2328; --muted: #59636e; --line: #d1d9e0; --bg: #ffffff; --soft: #f6f8fa;
+          --done: #1a7f37; --doing: #9a6700; --todo: #59636e; --warn: #9a6700; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #e6edf3; --muted: #9198a1; --line: #3d444d; --bg: #0d1117; --soft: #151b23;
+            --done: #3fb950; --doing: #d29922; --todo: #9198a1; --warn: #d29922; }
+  }
+  body { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; color: var(--fg);
+         background: var(--bg); line-height: 1.7; max-width: 880px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 1.6rem; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  h2 { font-size: 1.25rem; margin-top: 2em; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--soft); }
+  code, pre { font-family: ui-monospace, Menlo, monospace; background: var(--soft); border-radius: 4px; }
+  code { padding: 1px 4px; }
+  pre { padding: 12px; overflow-x: auto; }
+  .meta { color: var(--muted); }
+  .status { font-weight: bold; white-space: nowrap; }
+  .status.done { color: var(--done); }
+  .status.doing { color: var(--doing); }
+  .status.todo { color: var(--todo); }
+  .proposal { border-left: 4px solid var(--warn); padding: 4px 12px; background: var(--soft); }
+</style>
+</head>
+<body>
+
+<h1>F5 コメント入力 実装計画</h1>
+<p class="meta">作成日: 2026-09-26 ／ 元資料: 仕様設計書.md（F5・利用の流れ）</p>
+
+<h2>ステータス</h2>
+<p class="status done" id="overall-status">完了（2026-09-26。変更の提案も承認済み）</p>
+
+<h2>ToDo</h2>
+<table id="todo">
+  <thead><tr><th>No.</th><th>内容</th><th>ステータス</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>【Red】コメント・修正案の記録を更新する関数と、書かれた字幕を数える関数のテストを書き、失敗を確認する</td><td class="status done">完了</td></tr>
+    <tr><td>2</td><td>【Green→Refactor】<code>src/reviews.js</code> を実装し、テストを通す</td><td class="status done">完了</td></tr>
+    <tr><td>3</td><td>一覧の各行の字幕の下に「コメント」「修正案」の入力欄を置く（<code>src/subtitle-list.js</code>・<code>index.html</code>）</td><td class="status done">完了</td></tr>
+    <tr><td>4</td><td><code>src/main.js</code>: 入力の記録、入力欄のクリックでは移動しない、入力中は追従のスクロールを休む、消える前の確認</td><td class="status done">完了</td></tr>
+    <tr><td>5</td><td>ブラウザで確認（入力・改行で欄が伸びる・クリックで移動しない・入力中の追従・ページを閉じる／別SRTの確認・エラー時にコメントが残る）</td><td class="status done">完了</td></tr>
+    <tr><td>6</td><td>README と F2・F4 の仕様書（archive）の記述を今の動きに合わせる</td><td class="status done">完了</td></tr>
+  </tbody>
+</table>
+
+<h2>1. 目的</h2>
+<p>字幕一覧の各行に「コメント（指摘）」と「修正案」を書けるようにする。字幕そのもの（本文・時刻）はアプリでは直さない（設計書どおり）。
+書いた内容の保存（CSV 書き出し）と再開（CSV 読み込み）は F6 で作る。</p>
+
+<h2>2. 決まったこと（質問への回答）</h2>
+<table>
+  <tr><th>項目</th><th>決定</th></tr>
+  <tr><td>入力欄の形</td><td>複数行を書ける欄。Enter で改行でき、書いた分だけ欄が高くなる</td></tr>
+  <tr><td>入力欄の配置</td><td>各行の字幕の下に「コメント」「修正案」を縦に並べる（右側の欄の幅は今のまま）</td></tr>
+  <tr><td>消えないための対策</td><td>コメント・修正案が1件でもあるときに、ページを閉じる・再読み込みする・別の SRT を読み込むと確認を出す</td></tr>
+  <tr><td>入力中の追従</td><td>入力欄にカーソルがある間は「再生位置に追従」のスクロールを休む（行の強調は続ける）。入力欄から出たら、次に字幕が切り替わったときから追従を再開する</td></tr>
+</table>
+
+<h2>3. 画面</h2>
+<pre>
+番号 開始          字幕
+ 12  00:00:30,983  （ドラえもん・のび太）ふん
+                   コメント [表示時間が短い                 ]
+                   修正案   [（ドラえもん・のび太）ふんっ    ]
+                            [                               ] ← 改行すると欄が伸びる
+</pre>
+<ul>
+  <li>入力欄にはそれぞれ「コメント」「修正案」の見出しを付ける（どちらの欄か分かるように）</li>
+  <li>入力欄や見出しをクリックしても動画は移動しない（書くたびに動画が飛ばないように）。番号・開始時刻・字幕の文字をクリックしたときだけ移動する</li>
+  <li>コメント・修正案のどちらかが書かれている行は、番号の横に印（●）を付けて、書いた行が一覧で分かるようにする</li>
+  <li>空白だけの入力は「書かれていない」とみなす（確認や印の判断で）。入力された文字そのものは変えずに記録する</li>
+</ul>
+
+<h2>4. 消える前の確認</h2>
+<table>
+  <tr><th>操作</th><th>書かれた字幕が1件以上あるとき</th></tr>
+  <tr><td>ページを閉じる・再読み込みする</td><td>ブラウザ標準の「このサイトを離れますか？」の確認を出す（文言はブラウザが決めるため変えられない）</td></tr>
+  <tr><td>別の SRT を読み込む（選択・ドラッグ）</td><td>読み込みに成功したあと、差し替える前に「書いたコメント・修正案（○件）は消えます。新しい SRT に切り替えますか？」と確認する。「キャンセル」なら今の一覧とコメントをそのまま残す</td></tr>
+</table>
+<p>F6 で CSV に書き出したあとは確認を出さないようにする（「書き出してから変更があるか」の判断は F6 で作る）。</p>
+
+<div class="proposal">
+<p><strong>変更の提案（承認をお願いします）</strong>: 今は、SRT の読み込みがエラーになると一覧を消している（F2・F4 で決めた動き）。
+コメントを書けるようになると、読み込み直しに失敗しただけで書いたコメントが全部消えてしまう。
+そこで F5 からは、<strong>読み込みがエラーになったら今の一覧とコメントをそのまま残し、エラーだけを表示する</strong>ように変える。</p>
+</div>
+
+<h2>5. ファイル構成（追加・変更分）</h2>
+<pre>
+src/
+├── reviews.js         # コメント・修正案の記録の更新と、書かれた字幕の数え上げ（新規）
+├── subtitle-list.js   # 各行に入力欄と「書いた印」を追加（変更）
+└── main.js            # 入力の記録・クリック判定・追従の休止・確認（変更）
+tests/
+└── reviews.test.js
+</pre>
+
+<h2>6. 部品の仕様（src/reviews.js）</h2>
+<p>記録は「字幕番号 → <code>{ comment, suggestion }</code>」のオブジェクト。元の記録は書き換えず、新しい記録を返す。</p>
+
+<h3>6.1 <code>updateReview(reviews, number, field, value): Reviews</code></h3>
+<table>
+  <tr><th>種別</th><th>入力</th><th>結果</th></tr>
+  <tr><td>正常系</td><td>空の記録に、12番のコメント「短い」</td><td><code>{ 12: { comment: "短い", suggestion: "" } }</code></td></tr>
+  <tr><td>正常系</td><td>12番のコメントがある記録に、12番の修正案</td><td>コメントは残ったまま修正案が入る</td></tr>
+  <tr><td>正常系</td><td>改行を含む修正案</td><td>改行ごと記録される</td></tr>
+  <tr><td>正常系</td><td>更新したとき</td><td>元の記録は変わらない</td></tr>
+  <tr><td>境界値</td><td>空文字で上書き</td><td>空文字として記録される</td></tr>
+  <tr><td>異常系</td><td>欄の名前が comment / suggestion 以外</td><td><code>Error</code>（プログラムの誤り）</td></tr>
+  <tr><td>異常系</td><td>番号が整数でない</td><td><code>TypeError</code></td></tr>
+  <tr><td>異常系</td><td>値が文字列でない</td><td><code>TypeError</code></td></tr>
+</table>
+
+<h3>6.2 <code>countReviewedSubtitles(reviews): number</code></h3>
+<table>
+  <tr><th>種別</th><th>入力</th><th>結果</th></tr>
+  <tr><td>正常系</td><td>コメントだけの字幕1件・修正案だけの字幕1件</td><td>2</td></tr>
+  <tr><td>正常系</td><td>1件の字幕にコメントと修正案の両方</td><td>1</td></tr>
+  <tr><td>境界値</td><td>空の記録</td><td>0</td></tr>
+  <tr><td>境界値</td><td>空白・改行だけの入力</td><td>数えない</td></tr>
+  <tr><td>境界値</td><td>書いた後に消して空文字に戻した</td><td>数えない</td></tr>
+</table>
+
+<h3>6.3 <code>isReviewed(review): boolean</code></h3>
+<p>1件分の記録にコメント・修正案のどちらかが（空白以外で）書かれていれば true。一覧の「書いた印」に使う。6.2 の数え上げもこれを使う。</p>
+
+<h2>7. 動作確認の結果（2026-09-26）</h2>
+<table>
+  <tr><th>確認内容</th><th>結果</th></tr>
+  <tr><td>自動テスト・リンタ・整形チェック</td><td>110件成功（追加 15件）、指摘なし</td></tr>
+  <tr><td>各行の入力欄</td><td>字幕の下に「コメント」「修正案」の2つ。見出しの幅をそろえ、入力欄の左端をそろえた（実装中に調整）</td></tr>
+  <tr><td>キーボードで入力（改行あり）</td><td>改行ごと記録され、欄が 26px → 44px に伸びた。番号の横に ● が付いた</td></tr>
+  <tr><td>空白だけの入力</td><td>● は付かず、数えない</td></tr>
+  <tr><td>入力欄・見出しのクリック / 字幕の文字のクリック</td><td>移動しない / 移動する（動画の前なのでメッセージが出た）</td></tr>
+  <tr><td>入力中の追従</td><td>入力欄にカーソルがある間は #50 に移っても一覧は動かず（強調は付く）。入力欄から出た後の移動では #40 まで追従した</td></tr>
+  <tr><td>形の崩れた SRT を読み込む</td><td>エラーを表示し、60行の一覧とコメントはそのまま残った</td></tr>
+  <tr><td>別の SRT: キャンセル / OK</td><td>「書いたコメント・修正案（1件）は消えます…」の確認。キャンセルで一覧とコメントが残る / OK で新しい一覧に切り替わりコメントは空</td></tr>
+  <tr><td>コメントがないときの別の SRT</td><td>確認なしで切り替わる</td></tr>
+  <tr><td>ページを閉じる合図（beforeunload）</td><td>コメントがあるときだけ確認の合図が立つ。ブラウザ標準の確認画面そのものは<strong>未確認</strong>（自動操作では表示できないため）</td></tr>
+</table>
+
+<h2>8. 今回やらないこと</h2>
+<ul>
+  <li>CSV の書き出し・読み込み（F6）、ブラウザへの自動保存（設計書で対象外）</li>
+  <li>字幕の本文・時刻の修正（設計書で対象外）</li>
+</ul>
+
+</body>
+</html>

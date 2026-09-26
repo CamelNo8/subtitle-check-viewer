@@ -6,7 +6,13 @@ import { parseSrt } from "./srt-parser.js";
 import { pickSrtFile } from "./srt-file-picker.js";
 import { findActiveSubtitles } from "./active-subtitles.js";
 import { renderSubtitleBar } from "./subtitle-bar.js";
-import { highlightSubtitleRows, renderSubtitleList } from "./subtitle-list.js";
+import {
+  fitTextareaHeight,
+  highlightSubtitleRows,
+  markReviewedRow,
+  renderSubtitleList,
+} from "./subtitle-list.js";
+import { countReviewedSubtitles, isReviewed, updateReview } from "./reviews.js";
 import { calculateScrollTop } from "./scroll-position.js";
 
 const PLAYER_ELEMENT_ID = "player";
@@ -30,6 +36,8 @@ const followPlaybackCheckbox = document.getElementById("follow-playback");
 // 読み込んだ SRT の字幕と、字幕欄に今出している字幕
 let loadedSubtitles = [];
 let shownSubtitles = [];
+// 字幕番号 → その字幕のコメント・修正案（reviews.js の形）
+let reviews = {};
 
 function showMessage(text) {
   messageArea.textContent = text;
@@ -64,20 +72,43 @@ function showSrtResult(text, warnings, isError) {
   );
 }
 
-async function loadSubtitleFile(file) {
-  try {
-    const { subtitles, warnings } = parseSrt(decodeUtf8(await file.arrayBuffer()));
-    showSubtitleList(subtitles);
-    showSrtResult(`${file.name}: ${subtitles.length}件の字幕を読み込みました`, warnings, false);
-  } catch (error) {
-    showSubtitleList([]);
-    showSrtResult(`${file.name}: ${error.message}`, [], true);
+// 書いたコメント・修正案が消える操作の前に確認する。書かれていなければ確認せず進める
+function confirmDiscardReviews() {
+  const reviewedCount = countReviewedSubtitles(reviews);
+  if (reviewedCount === 0) {
+    return true;
   }
+  return window.confirm(
+    `書いたコメント・修正案（${reviewedCount}件）は消えます。新しい SRT に切り替えますか？`,
+  );
 }
 
-// 字幕を保持して一覧を作り直す。字幕がなければ一覧を隠し、選択の枠を大きな表示に戻す
+async function loadSubtitleFile(file) {
+  let parsed;
+  try {
+    parsed = parseSrt(decodeUtf8(await file.arrayBuffer()));
+  } catch (error) {
+    // 読み込みに失敗しただけでコメントが消えないよう、今の一覧とコメントは残す
+    showSrtResult(`${file.name}: ${error.message}`, [], true);
+    return;
+  }
+  if (!confirmDiscardReviews()) {
+    showSrtResult(
+      `${file.name} の読み込みを取りやめました（今の一覧とコメントはそのままです）`,
+      [],
+      false,
+    );
+    return;
+  }
+  const { subtitles, warnings } = parsed;
+  showSubtitleList(subtitles);
+  showSrtResult(`${file.name}: ${subtitles.length}件の字幕を読み込みました`, warnings, false);
+}
+
+// 字幕を保持して一覧を作り直す（コメント・修正案は空に戻る）
 function showSubtitleList(subtitles) {
   loadedSubtitles = subtitles;
+  reviews = {};
   renderSubtitleList(subtitleListBody, subtitles);
   const hasSubtitles = subtitles.length > 0;
   subtitleListSection.hidden = !hasSubtitles;
@@ -110,9 +141,17 @@ function scrollRowIntoView(row) {
 function showActiveSubtitles(activeSubtitles) {
   renderSubtitleBar(subtitleBar, activeSubtitles);
   const firstActiveRow = highlightSubtitleRows(subtitleListBody, loadedSubtitles, activeSubtitles);
-  if (followPlaybackCheckbox.checked && firstActiveRow !== null) {
+  if (followPlaybackCheckbox.checked && firstActiveRow !== null && !isTypingReview()) {
     scrollRowIntoView(firstActiveRow);
   }
+}
+
+// 入力欄に書いている途中は、一覧が勝手に動かないよう追従のスクロールを休む
+function isTypingReview() {
+  return (
+    document.activeElement instanceof HTMLTextAreaElement &&
+    subtitleListBody.contains(document.activeElement)
+  );
 }
 
 // 描画のたびに再生時刻を読み、表示すべき字幕が変わったときだけ字幕欄と一覧を更新する
@@ -186,12 +225,32 @@ window.addEventListener("drop", (event) => event.preventDefault());
 // 行のどこをクリックしても、その字幕の開始時刻へ移動する
 subtitleListBody.addEventListener("click", (event) => {
   const row = event.target.closest("tr[data-index]");
-  if (row === null) {
+  // 入力欄とその見出しのクリックでは、書くたびに動画が飛ばないよう移動しない
+  if (row === null || event.target.closest(".review-fields") !== null) {
     return;
   }
   const subtitle = loadedSubtitles[Number(row.dataset.index)];
   if (!seekToMs(subtitle.startMs)) {
     showMessage(NO_VIDEO_MESSAGE);
+  }
+});
+
+subtitleListBody.addEventListener("input", (event) => {
+  const textarea = event.target;
+  if (!(textarea instanceof HTMLTextAreaElement)) {
+    return;
+  }
+  const row = textarea.closest("tr[data-index]");
+  const { number } = loadedSubtitles[Number(row.dataset.index)];
+  reviews = updateReview(reviews, number, textarea.dataset.field, textarea.value);
+  markReviewedRow(row, isReviewed(reviews[number]));
+  fitTextareaHeight(textarea);
+});
+
+// コメント・修正案があるときにページを閉じる・再読み込みすると、ブラウザ標準の確認を出す
+window.addEventListener("beforeunload", (event) => {
+  if (countReviewedSubtitles(reviews) > 0) {
+    event.preventDefault();
   }
 });
 
