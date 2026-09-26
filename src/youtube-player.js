@@ -1,5 +1,6 @@
 const API_SCRIPT_URL = "https://www.youtube.com/iframe_api";
 const API_LOAD_TIMEOUT_MS = 15000;
+const MS_PER_SECOND = 1000;
 const API_CONNECTION_ERROR_MESSAGE =
   "YouTubeに接続できませんでした。インターネット接続を確認してください。" +
   "社内ネットワークでYouTubeが制限されている場合は、社内の管理者にご確認ください。";
@@ -10,6 +11,8 @@ const API_TIMEOUT_ERROR_MESSAGE =
 // スクリプトの読み込みとプレイヤーの作成は1ページにつき1回だけ行うため、ここで覚えておく
 let apiReadyPromise = null;
 let playerPromise = null;
+// 動画を表示し終えたプレイヤー。再生時刻を毎回すぐに読めるよう、Promise とは別に持っておく
+let videoShownPlayer = null;
 
 /**
  * YouTube IFrame Player API のスクリプトを読み込む。2回目以降は1回目の結果を返す。
@@ -59,6 +62,24 @@ export async function showVideo(elementId, videoId, onError) {
   }
   const player = await playerPromise;
   player.cueVideoById(videoId);
+  videoShownPlayer = player;
+}
+
+/**
+ * プレイヤーの再生時刻をミリ秒で返す。
+ *
+ * @returns {number | null} 再生時刻（ミリ秒）。まだ動画を表示していなければ null。
+ */
+export function getCurrentTimeMs() {
+  if (videoShownPlayer === null) {
+    return null;
+  }
+  const seconds = videoShownPlayer.getCurrentTime();
+  // 読み込み直後などで数値が返らないことがあるので、そのときは「まだ分からない」として扱う
+  if (typeof seconds !== "number" || Number.isNaN(seconds)) {
+    return null;
+  }
+  return seconds * MS_PER_SECOND;
 }
 
 // 動画を指定して作ると、存在しない動画のとき onReady も onError も返らず待ち続けてしまう。

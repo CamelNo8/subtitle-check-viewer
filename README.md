@@ -7,6 +7,7 @@ YouTube動画をダウンロードせずに、自作した字幕を字幕制作�
 
 - F1 動画の読み込み: YouTubeのURLを貼り付けると自動で埋め込みプレイヤーに表示する（手で打ち込んだ場合は Enter）
 - F2 字幕の読み込み: 動画の右側の枠で SRT ファイル（UTF-8）を選択 or ドラッグすると読み込み、件数・警告・エラーを表示する
+- F3 現在の字幕の表示: 再生中の時刻に合う字幕を動画の下の字幕欄に表示する（重なりは上下に並べる、`<font color="#RRGGBB">` は色つき）
 
 ## 必要なもの
 
@@ -60,6 +61,9 @@ src/
   utf8-decoder.js            ファイルのバイト列 → UTF-8 の文字列
   srt-parser.js              SRT の文字列 → 字幕の一覧（番号・開始・終了・本文）
   srt-file-picker.js         選択・ドラッグされたファイル → 読み込む SRT ファイル1つ
+  active-subtitles.js        ある時刻に表示すべき字幕を探す
+  subtitle-markup.js         字幕の本文（タグ付き）→ 行・色つきの文字のかたまり
+  subtitle-bar.js            字幕欄に字幕を描く
 tests/                       node --test で動くテスト
 docs/specs/                  作業中の実装計画（完了したものは docs/specs/archive/）
 ```

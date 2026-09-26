@@ -52,6 +52,22 @@
         height: 100%;
         border: 0;
       }
+      /* 字幕の文字の大きさを動画の幅に合わせるため、この欄の幅を cqw の基準にする */
+      .video-column {
+        container-type: inline-size;
+      }
+      .subtitle-bar {
+        --line-height: 1.4;
+        /* 動画の幅に比例させるが、狭い画面でも読めるよう 16px より小さくしない */
+        --min-font-size: 16px;
+        min-height: calc(2em * var(--line-height));
+        padding: 0.4em 1em;
+        background: #000000;
+        color: #ffffff;
+        font-size: max(var(--min-font-size), 3.2cqw);
+        line-height: var(--line-height);
+        text-align: center;
+      }
       .subtitle-panel {
         display: flex;
         flex-direction: column;
@@ -116,9 +132,12 @@
       <p id="message" class="message" role="alert"></p>
     </header>
     <main class="workspace">
-      <section class="video-frame">
-        <div id="player"></div>
-      </section>
+      <div class="video-column">
+        <section class="video-frame">
+          <div id="player"></div>
+        </section>
+        <div id="subtitle-bar" class="subtitle-bar"></div>
+      </div>
       <aside id="subtitle-panel" class="subtitle-panel">
         <label id="srt-drop-zone" class="srt-drop-zone">
           SRTファイルを選択 or ドラッグ

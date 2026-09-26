@@ -1,9 +1,11 @@
 import { extractVideoId } from "./youtube-url.js";
 import { describePlayerError } from "./player-error-message.js";
-import { showVideo } from "./youtube-player.js";
+import { getCurrentTimeMs, showVideo } from "./youtube-player.js";
 import { decodeUtf8 } from "./utf8-decoder.js";
 import { parseSrt } from "./srt-parser.js";
 import { pickSrtFile } from "./srt-file-picker.js";
+import { findActiveSubtitles } from "./active-subtitles.js";
+import { renderSubtitleBar } from "./subtitle-bar.js";
 
 const PLAYER_ELEMENT_ID = "player";
 
@@ -16,6 +18,11 @@ const srtDropZone = document.getElementById("srt-drop-zone");
 const subtitlePanel = document.getElementById("subtitle-panel");
 const srtStatus = document.getElementById("srt-status");
 const srtWarningList = document.getElementById("srt-warnings");
+const subtitleBar = document.getElementById("subtitle-bar");
+
+// 読み込んだ SRT の字幕と、字幕欄に今出している字幕
+let loadedSubtitles = [];
+let shownSubtitles = [];
 
 function showMessage(text) {
   messageArea.textContent = text;
@@ -53,10 +60,27 @@ function showSrtResult(text, warnings, isError) {
 async function loadSubtitleFile(file) {
   try {
     const { subtitles, warnings } = parseSrt(decodeUtf8(await file.arrayBuffer()));
+    loadedSubtitles = subtitles;
     showSrtResult(`${file.name}: ${subtitles.length}件の字幕を読み込みました`, warnings, false);
   } catch (error) {
+    loadedSubtitles = [];
     showSrtResult(`${file.name}: ${error.message}`, [], true);
   }
+}
+
+function isSameSubtitles(left, right) {
+  return left.length === right.length && left.every((subtitle, index) => subtitle === right[index]);
+}
+
+// 描画のたびに再生時刻を読み、表示すべき字幕が変わったときだけ字幕欄を描き直す
+function updateSubtitleBar() {
+  const timeMs = getCurrentTimeMs();
+  const activeSubtitles = timeMs === null ? [] : findActiveSubtitles(loadedSubtitles, timeMs);
+  if (!isSameSubtitles(activeSubtitles, shownSubtitles)) {
+    renderSubtitleBar(subtitleBar, activeSubtitles);
+    shownSubtitles = activeSubtitles;
+  }
+  requestAnimationFrame(updateSubtitleBar);
 }
 
 function handleSrtFiles(files) {
@@ -115,3 +139,5 @@ subtitlePanel.addEventListener("drop", (event) => {
 // 枠の外に落としたとき、ブラウザがファイルを開いて画面が切り替わらないようにする
 window.addEventListener("dragover", (event) => event.preventDefault());
 window.addEventListener("drop", (event) => event.preventDefault());
+
+requestAnimationFrame(updateSubtitleBar);
