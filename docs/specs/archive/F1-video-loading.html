@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F1 動画の読み込み 実装計画</title>
+<style>
+  :root { --fg: #1f2328; --muted: #59636e; --line: #d1d9e0; --bg: #ffffff; --soft: #f6f8fa;
+          --done: #1a7f37; --doing: #9a6700; --todo: #59636e; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #e6edf3; --muted: #9198a1; --line: #3d444d; --bg: #0d1117; --soft: #151b23;
+            --done: #3fb950; --doing: #d29922; --todo: #9198a1; }
+  }
+  body { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; color: var(--fg);
+         background: var(--bg); line-height: 1.7; max-width: 880px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 1.6rem; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  h2 { font-size: 1.25rem; margin-top: 2em; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--soft); }
+  code, pre { font-family: ui-monospace, Menlo, monospace; background: var(--soft); border-radius: 4px; }
+  code { padding: 1px 4px; }
+  pre { padding: 12px; overflow-x: auto; }
+  .meta { color: var(--muted); }
+  .status { font-weight: bold; white-space: nowrap; }
+  .status.done { color: var(--done); }
+  .status.doing { color: var(--doing); }
+  .status.todo { color: var(--todo); }
+</style>
+</head>
+<body>
+
+<h1>F1 動画の読み込み 実装計画</h1>
+<p class="meta">作成日: 2026-09-26 ／ 元資料: 字幕チェック用Webアプリ 仕様設計書（F1）</p>
+
+<h2>ステータス</h2>
+<p class="status done" id="overall-status">完了（2026-09-26）</p>
+
+<h2>ToDo</h2>
+<table id="todo">
+  <thead><tr><th>No.</th><th>内容</th><th>ステータス</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td><code>package.json</code> を作り、<code>npm test</code> で <code>node --test</code> が動くようにする。ESLint・Prettier を開発用に追加し、<code>npm run lint</code> / <code>npm run format</code> を用意する</td><td class="status done">完了</td></tr>
+    <tr><td>2</td><td>【Red】URLから動画IDを取り出す関数のテストを書き、失敗を確認する</td><td class="status done">完了</td></tr>
+    <tr><td>3</td><td>【Green→Refactor】<code>src/youtube-url.js</code> を実装し、テストを通す</td><td class="status done">完了</td></tr>
+    <tr><td>4</td><td>【Red】プレイヤーのエラーコードを日本語メッセージにする関数のテストを書き、失敗を確認する</td><td class="status done">完了</td></tr>
+    <tr><td>5</td><td>【Green→Refactor】<code>src/player-error-message.js</code> を実装し、テストを通す</td><td class="status done">完了</td></tr>
+    <tr><td>6</td><td><code>src/youtube-player.js</code>（IFrame APIの読み込みとプレイヤー作成）を実装する</td><td class="status done">完了</td></tr>
+    <tr><td>7</td><td><code>index.html</code> と <code>src/main.js</code>（画面と部品のつなぎ込み）を実装する</td><td class="status done">完了</td></tr>
+    <tr><td>8</td><td>ブラウザで動作確認（正常な動画・不正URL・埋め込み禁止動画）</td><td class="status done">完了</td></tr>
+    <tr><td>9</td><td>README に「テストの動かし方」「ローカルでの開き方」を書く</td><td class="status done">完了</td></tr>
+  </tbody>
+</table>
+
+<h2>1. 目的</h2>
+<p>YouTubeのURLを入力して「読込」を押すと、画面の左側に埋め込みプレイヤーが表示され、動画を再生できるようにする。
+字幕・一覧・CSVなど他の機能は後のステップで作る。</p>
+
+<h2>2. 決まったこと（質問への回答）</h2>
+<table>
+  <tr><th>項目</th><th>決定</th></tr>
+  <tr><td>ファイル構成</td><td><code>index.html</code> ＋ <code>src/機能名.js</code>（ESモジュール＝JSファイルを部品として読み込む仕組み）。
+    設計書の「HTML1ファイル」から変更。GitHub Pagesではそのまま動く</td></tr>
+  <tr><td>テスト</td><td>Node標準の <code>node --test</code>（追加インストールなし）</td></tr>
+  <tr><td>受け付けるURL</td><td><code>youtube.com/watch?v=ID</code>、<code>youtu.be/ID</code>、<code>youtube.com/embed/ID</code>、<code>youtube.com/shorts/ID</code></td></tr>
+  <tr><td>広告中の再生時刻の調査</td><td>F1には含めない。F1完了後、別の調査用ページとして実施する（別の仕様書を作る）</td></tr>
+  <tr><td>リンタ・フォーマッタ</td><td>VS Code には Prettier 拡張だけがあり、リンタ（ESLint）は無かったため、次を開発用ライブラリとして追加する（承認済み）。
+    <ul>
+      <li><code>eslint</code> — リンタ本体（バグになりそうな書き方を見つける）</li>
+      <li><code>@eslint/js</code> — ESLint 推奨ルール一式</li>
+      <li><code>globals</code> — <code>window</code>・<code>document</code> などブラウザの組み込み変数を ESLint に教えるため</li>
+      <li><code>prettier</code> — フォーマッタ（見た目を整える）。VS Code 拡張と同じ整え方をコマンドでも確認できるようにするため</li>
+    </ul>
+    アプリ本体（ブラウザで動く部分）はこれらを使わない。公開ファイルに影響はない</td></tr>
+</table>
+
+<h2>3. ファイル構成</h2>
+<pre>
+subtitle-check-viewer/
+├── index.html                  # 画面（操作欄と動画欄）
+├── package.json                # npm test でテストを動かすためだけの設定
+├── src/
+│   ├── youtube-url.js          # URL → 動画ID を取り出す（純粋な関数）
+│   ├── player-error-message.js # プレイヤーのエラーコード → 日本語メッセージ（純粋な関数）
+│   ├── youtube-player.js       # IFrame Player API の読み込みとプレイヤー操作（外部とのやりとり）
+│   └── main.js                 # 画面のボタンと上の部品をつなぐ
+└── tests/
+    ├── youtube-url.test.js
+    └── player-error-message.test.js
+</pre>
+<p>定数（受け付けるホスト名、動画IDの長さなど）は、今は各ファイルの先頭に置く。複数の機能で使うようになったら <code>src/config.js</code> にまとめる。</p>
+
+<h2>4. 部品の仕様</h2>
+
+<h3>4.1 <code>extractVideoId(url: string): string</code>（src/youtube-url.js）</h3>
+<p>YouTubeのURL文字列から、11文字の動画IDを取り出して返す。</p>
+<ul>
+  <li>前後の空白は取り除いてから判定する（コピペで空白が入りやすいため）</li>
+  <li>受け付けるホスト: <code>youtube.com</code> / <code>www.youtube.com</code> / <code>m.youtube.com</code> / <code>youtu.be</code></li>
+  <li><code>&amp;t=30s</code>、<code>&amp;list=...</code>、<code>?si=...</code> などの余分な部分は無視してIDだけ返す</li>
+  <li>動画IDは「英数字・<code>-</code>・<code>_</code> の11文字」のときだけ正しいとみなす</li>
+  <li>読み取れないときは <code>Error</code> を投げる。原因ごとに別のメッセージにする（下表）。空欄以外はメッセージに入力値を含める</li>
+</ul>
+
+<table>
+  <tr><th>原因</th><th>例</th><th>メッセージ（案）</th></tr>
+  <tr><td>空欄</td><td>空文字・空白だけ</td><td>YouTubeのURLを入力してください。</td></tr>
+  <tr><td>URLの形になっていない</td><td><code>abc</code>、<code>https://</code> が無い</td><td>URLとして読み取れません: 「○○」。YouTubeの動画ページのアドレス欄にあるURL（https:// から始まるもの）をそのまま貼り付けてください。</td></tr>
+  <tr><td>YouTube以外のURL</td><td><code>https://vimeo.com/123</code></td><td>YouTube以外のURLです: 「○○」。youtube.com または youtu.be のURLを貼り付けてください。</td></tr>
+  <tr><td>YouTubeのURLだが、動画を指していない</td><td><code>https://www.youtube.com/watch</code>（v= が無い）、チャンネルページ、トップページ</td><td>動画のURLではありません: 「○○」。見たい動画を開いた状態のURL（例: https://www.youtube.com/watch?v=xxxxxxxxxxx）を貼り付けてください。</td></tr>
+  <tr><td>動画IDの形がおかしい</td><td>IDが10文字・12文字、使えない記号が入っている（コピーの途中切れなど）</td><td>URLの動画ID「○○」が正しくありません（英数字と - _ の11文字のはずです）。URLが途中で切れていないか確認し、もう一度コピーしてください。</td></tr>
+  <tr><td>文字列以外が渡された</td><td><code>null</code> など</td><td><code>TypeError</code>「URLは文字列で渡してください（受け取った型: ○○）」。プログラムの誤りなので企業の方には通常出ない</td></tr>
+</table>
+
+<p>テストするケース:</p>
+<table>
+  <tr><th>種別</th><th>入力</th><th>結果</th></tr>
+  <tr><td>正常系</td><td><code>https://www.youtube.com/watch?v=dQw4w9WgXcQ</code></td><td><code>dQw4w9WgXcQ</code></td></tr>
+  <tr><td>正常系</td><td><code>https://www.youtube.com/watch?v=dQw4w9WgXcQ&amp;t=30s&amp;list=PLxxx</code></td><td><code>dQw4w9WgXcQ</code></td></tr>
+  <tr><td>正常系</td><td><code>https://m.youtube.com/watch?v=dQw4w9WgXcQ</code></td><td><code>dQw4w9WgXcQ</code></td></tr>
+  <tr><td>正常系</td><td><code>https://youtu.be/dQw4w9WgXcQ?si=abc</code></td><td><code>dQw4w9WgXcQ</code></td></tr>
+  <tr><td>正常系</td><td><code>https://www.youtube.com/embed/dQw4w9WgXcQ</code></td><td><code>dQw4w9WgXcQ</code></td></tr>
+  <tr><td>正常系</td><td><code>https://www.youtube.com/shorts/dQw4w9WgXcQ</code></td><td><code>dQw4w9WgXcQ</code></td></tr>
+  <tr><td>正常系</td><td>前後に空白のあるURL</td><td><code>dQw4w9WgXcQ</code></td></tr>
+  <tr><td>境界値</td><td>空文字</td><td>「空欄」のエラー</td></tr>
+  <tr><td>境界値</td><td>空白だけ</td><td>「空欄」のエラー</td></tr>
+  <tr><td>境界値</td><td>IDが10文字</td><td>「動画IDの形がおかしい」のエラー</td></tr>
+  <tr><td>境界値</td><td>IDが12文字</td><td>「動画IDの形がおかしい」のエラー</td></tr>
+  <tr><td>異常系</td><td>IDに使えない記号が入っている</td><td>「動画IDの形がおかしい」のエラー</td></tr>
+  <tr><td>異常系</td><td>URLではない文字列（例: <code>abc</code>）</td><td>「URLの形になっていない」のエラー</td></tr>
+  <tr><td>異常系</td><td>YouTube以外のURL（例: vimeo.com）</td><td>「YouTube以外のURL」のエラー</td></tr>
+  <tr><td>異常系</td><td><code>https://www.youtube.com/watch</code>（v= が無い）</td><td>「動画を指していない」のエラー</td></tr>
+  <tr><td>異常系</td><td><code>https://www.youtube.com/@channel</code>（チャンネルページ）</td><td>「動画を指していない」のエラー</td></tr>
+  <tr><td>異常系</td><td>文字列以外（<code>null</code> など）</td><td><code>TypeError</code></td></tr>
+</table>
+
+<h3>4.2 <code>describePlayerError(code: number): string</code>（src/player-error-message.js）</h3>
+<p>YouTubeプレイヤーが返すエラー番号を、企業の方が読んで対処できる日本語に変える。
+設計書の最大のリスク「埋め込み禁止の動画は再生できない」を画面で分かるようにするため。</p>
+<table>
+  <tr><th>コード</th><th>意味（YouTube公式）</th><th>表示するメッセージ（案）</th></tr>
+  <tr><td>2</td><td>パラメータが不正</td><td>YouTubeが動画IDを受け付けませんでした。URLをもう一度コピーして貼り付けてください。（エラーコード: 2）</td></tr>
+  <tr><td>5</td><td>HTML5プレイヤーのエラー</td><td>ブラウザで動画を再生できませんでした。ページを再読み込みしてください。直らない場合は Chrome など別のブラウザでお試しください。（エラーコード: 5）</td></tr>
+  <tr><td>100</td><td>動画が見つからない（削除・非公開）</td><td>動画が見つかりません。削除または非公開になった可能性があります。研究者に連絡してください。（エラーコード: 100）</td></tr>
+  <tr><td>101</td><td>動画の所有者が埋め込み再生を許可していない</td><td>この動画は、所有者が他のサイトでの再生を許可していないため再生できません。研究者に連絡してください。（エラーコード: 101）</td></tr>
+  <tr><td>150</td><td>101と同じ（YouTube公式では同じ意味。年齢制限などで出ることもある）</td><td>この動画は、YouTubeの設定（埋め込み禁止・年齢制限など）により他のサイトでは再生できません。研究者に連絡してください。（エラーコード: 150）</td></tr>
+  <tr><td>上記以外</td><td>—</td><td>原因不明のエラーで動画を再生できませんでした。研究者に連絡してください。（エラーコード: ○○）</td></tr>
+</table>
+<p>どのメッセージにもエラーコードを付け、企業の方から連絡を受けたときに原因を特定できるようにする。</p>
+<p>テストするケース: 上表の各コード（2・5・100・101・150）でそれぞれのメッセージが返ること（正常系）、表に無いコード（例: 999）で「原因不明」のメッセージにそのコードが入ること（異常系）、数値以外（<code>undefined</code> など）で <code>TypeError</code> になること（異常系）。</p>
+
+<h3>4.3 <code>youtube-player.js</code>（外部とのやりとり）</h3>
+<ul>
+  <li><code>loadYoutubeApi(): Promise&lt;void&gt;</code> — IFrame Player API のスクリプト（<code>https://www.youtube.com/iframe_api</code>）を1回だけ読み込み、準備ができたら完了する。
+    失敗の原因ごとに別のメッセージで失敗する（外部との通信にはタイムアウトを付ける規約のため、15秒で打ち切る）
+    <table>
+      <tr><th>原因</th><th>メッセージ（案）</th></tr>
+      <tr><td>スクリプトの読み込みに失敗（オフライン、社内ネットワークでYouTubeが遮断されている など）</td>
+        <td>YouTubeに接続できませんでした。インターネット接続を確認してください。社内ネットワークでYouTubeが制限されている場合は、社内の管理者にご確認ください。</td></tr>
+      <tr><td>15秒以内に準備ができない（回線が遅い・YouTube側の一時的な不調）</td>
+        <td>YouTubeのプレイヤーの準備に時間がかかりすぎたため中止しました。しばらく待ってからページを再読み込みしてください。</td></tr>
+    </table></li>
+  <li><code>showVideo(elementId, videoId, onError): Promise&lt;void&gt;</code> — 1回目はプレイヤーを作り、2回目以降は同じプレイヤーで動画を差し替える（<code>cueVideoById</code>＝読み込むだけで自動再生はしない）。エラー時は <code>onError(code)</code> を呼ぶ</li>
+  <li>後のステップ（F3・F4）で再生時刻の取得と移動が必要になるが、それは F3・F4 で追加する（今は作らない）</li>
+</ul>
+<p>このファイルはYouTube（外部）とのやりとりだけなので、自動テストは書かずブラウザで確認する（規約1.4：外部とのやりとりはロジックと分ける）。
+判断が必要な処理（URL解析・エラー文言）は 4.1・4.2 に切り出してテストする。</p>
+
+<h3>4.4 画面（index.html ／ src/main.js）</h3>
+<pre>
+┌──────────────────────────────────────────┐
+│ YouTube URL [______________________] [読込] │
+│ （エラー時はここに赤字でメッセージ）           │
+├──────────────────────┬───────────────────┤
+│                      │                   │
+│    YouTube動画        │ （F4で字幕一覧）    │
+│    16:9               │                   │
+└──────────────────────┴───────────────────┘
+</pre>
+<ul>
+  <li>「読込」ボタン、またはURL欄で Enter キーを押すと読み込む</li>
+  <li>URLが不正なら動画は変えず、エラーメッセージを表示する</li>
+  <li>読み込み成功やプレイヤーのエラーが出たときは、前のメッセージを消して新しい状態を表示する</li>
+  <li>右側（字幕一覧）は枠だけ置き、中身は F4 で作る。fps・SRT・CSV の操作欄も各ステップで追加する</li>
+</ul>
+
+<h2>5. 動かし方</h2>
+<ul>
+  <li>最初に1回: <code>npm install</code>（ESLint・Prettier を入れる）</li>
+  <li>テスト: <code>npm test</code></li>
+  <li>リンタ: <code>npm run lint</code> ／ 見た目の確認: <code>npm run format:check</code> ／ 見た目を整える: <code>npm run format</code></li>
+  <li>画面確認: ESモジュールはHTMLのダブルクリックでは動かないため、簡易サーバーで開く<br>
+    <code>uv run --no-project python -m http.server 8000</code> → ブラウザで <code>http://localhost:8000</code></li>
+</ul>
+
+<h2>6. 確認してほしい点</h2>
+<ul>
+  <li>4.1〜4.3 のエラーメッセージの文言。原因ごとに別のメッセージにし、企業の方が自分で直せるもの（URLの貼り間違い・通信・ブラウザ）は直し方を、研究者しか直せないもの（削除・埋め込み禁止・原因不明）は「研究者に連絡」を案内する方針。</li>
+</ul>
+
+<h2>7. 実装中に決めたこと</h2>
+<ul>
+  <li>Prettier の1行の長さを100文字に設定（<code>.prettierrc.json</code>）。コーディング規約の目安「1行100文字くらい」に合わせるため</li>
+  <li>フォームに <code>novalidate</code> を付けた。ブラウザ独自のURLチェックが先に動くと、4.1 のメッセージが表示されないため</li>
+  <li>ローカル確認用の起動設定 <code>.claude/launch.json</code> を追加</li>
+</ul>
+
+<h2>8. 動作確認の結果（2026-09-26）</h2>
+<table>
+  <tr><th>確認内容</th><th>結果</th></tr>
+  <tr><td>自動テスト（<code>npm test</code>）</td><td>24件すべて成功</td></tr>
+  <tr><td>リンタ・整形チェック</td><td>指摘なし</td></tr>
+  <tr><td>URL入力ミス5種類（空欄・abc・vimeo・チャンネル・ID10文字）</td><td>それぞれのメッセージが画面に出た</td></tr>
+  <tr><td>Enter キーで読込 → 再生ボタンで再生</td><td>再生できた</td></tr>
+  <tr><td>2本目の動画に差し替え</td><td>プレイヤーは1つのまま動画が変わり、前のメッセージが消えた</td></tr>
+  <tr><td>存在しない動画ID（<code>aaaaaaaaaaa</code>）</td><td>エラーコード <strong>150</strong> のメッセージが出た（100 ではなかった）</td></tr>
+  <tr><td>埋め込み禁止の実動画（101/150）、エラーコード 2・5</td><td><strong>未確認</strong>（該当する動画が手元にないため）</td></tr>
+  <tr><td>YouTubeにつながらない場合・15秒のタイムアウト</td><td><strong>未確認</strong>（通信を止める手段がないため）</td></tr>
+</table>
+<p>気づいた点: 今のYouTubeは、存在しない動画にもエラーコード150を返すことがある。150 のメッセージ（「埋め込み禁止・年齢制限など」）では削除・非公開の可能性が伝わらないため、文言を見直すかをクライアントに確認する。</p>
+
+<h2>9. 今回やらないこと</h2>
+<ul>
+  <li>字幕・一覧・CSV・fps選択（F2〜F7）</li>
+  <li>再生時刻の取得・移動（F3・F4で追加）</li>
+  <li>広告中の再生時刻の調査（別の仕様書で実施）</li>
+  <li>GitHub Pages への公開設定</li>
+</ul>
+
+</body>
+</html>
