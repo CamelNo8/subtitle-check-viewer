@@ -15,14 +15,24 @@
         padding: 12px 16px;
         border-bottom: 1px solid #d1d9e0;
       }
+      .controls-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px 24px;
+        align-items: center;
+      }
       .controls form {
         display: flex;
+        flex: 0 1 auto;
+        min-width: 0;
+        max-width: 100%;
         gap: 8px;
         align-items: center;
       }
       .controls input[type="url"] {
         flex: 1;
-        max-width: 640px;
+        width: 480px;
+        min-width: 0;
         padding: 6px 8px;
         font-size: 1rem;
       }
@@ -31,6 +41,27 @@
         color: #cf222e;
       }
       .message:empty {
+        display: none;
+      }
+      .srt-picker {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .srt-status {
+        margin: 8px 0 0;
+      }
+      .srt-status:empty {
+        display: none;
+      }
+      .srt-status.is-error {
+        color: #cf222e;
+      }
+      .srt-warnings {
+        margin: 4px 0 0;
+        color: #9a6700;
+      }
+      .srt-warnings:empty {
         display: none;
       }
       .workspace {
@@ -52,17 +83,25 @@
   </head>
   <body>
     <header class="controls">
-      <form id="video-form" novalidate>
-        <label for="video-url">YouTube URL</label>
-        <input
-          id="video-url"
-          type="url"
-          placeholder="https://www.youtube.com/watch?v=..."
-          autocomplete="off"
-        />
-        <button type="submit">読込</button>
-      </form>
+      <div class="controls-row">
+        <form id="video-form" novalidate>
+          <label for="video-url">YouTube URL</label>
+          <input
+            id="video-url"
+            type="url"
+            placeholder="https://www.youtube.com/watch?v=..."
+            autocomplete="off"
+          />
+          <button type="submit">読込</button>
+        </form>
+        <div class="srt-picker">
+          <label for="srt-file">SRT</label>
+          <input id="srt-file" type="file" accept=".srt" />
+        </div>
+      </div>
       <p id="message" class="message" role="alert"></p>
+      <p id="srt-status" class="srt-status" role="status"></p>
+      <ul id="srt-warnings" class="srt-warnings"></ul>
     </header>
     <main class="workspace">
       <section class="video-frame">
