@@ -15,22 +15,16 @@
         padding: 12px 16px;
         border-bottom: 1px solid #d1d9e0;
       }
-      .controls-row {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px 24px;
-        align-items: center;
-      }
       .controls form {
         display: flex;
-        flex: 0 1 auto;
-        min-width: 0;
         max-width: 100%;
         gap: 8px;
         align-items: center;
       }
+      .controls label {
+        white-space: nowrap;
+      }
       .controls input[type="url"] {
-        flex: 1;
         width: 480px;
         min-width: 0;
         padding: 6px 8px;
@@ -41,27 +35,6 @@
         color: #cf222e;
       }
       .message:empty {
-        display: none;
-      }
-      .srt-picker {
-        display: flex;
-        gap: 8px;
-        align-items: center;
-      }
-      .srt-status {
-        margin: 8px 0 0;
-      }
-      .srt-status:empty {
-        display: none;
-      }
-      .srt-status.is-error {
-        color: #cf222e;
-      }
-      .srt-warnings {
-        margin: 4px 0 0;
-        color: #9a6700;
-      }
-      .srt-warnings:empty {
         display: none;
       }
       .workspace {
@@ -79,35 +52,81 @@
         height: 100%;
         border: 0;
       }
+      .subtitle-panel {
+        display: flex;
+        flex-direction: column;
+      }
+      .srt-drop-zone {
+        display: flex;
+        flex: 1;
+        min-height: 160px;
+        align-items: center;
+        justify-content: center;
+        border: 2px dashed #8c959f;
+        border-radius: 8px;
+        color: #59636e;
+        text-align: center;
+        cursor: pointer;
+      }
+      .srt-drop-zone:hover,
+      .srt-drop-zone:focus-within,
+      .srt-drop-zone.is-dragover {
+        border-color: #0969da;
+        background: #ddf4ff;
+        color: #0969da;
+      }
+      /* 見た目は枠で出すので本来の入力欄は隠す。キーボード操作と読み上げのために要素は残す */
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+      }
+      .srt-status {
+        margin: 8px 0 0;
+      }
+      .srt-status:empty {
+        display: none;
+      }
+      .srt-status.is-error {
+        color: #cf222e;
+      }
+      .srt-warnings {
+        margin: 4px 0 0;
+        color: #9a6700;
+      }
+      .srt-warnings:empty {
+        display: none;
+      }
     </style>
   </head>
   <body>
     <header class="controls">
-      <div class="controls-row">
-        <form id="video-form" novalidate>
-          <label for="video-url">YouTube URL</label>
-          <input
-            id="video-url"
-            type="url"
-            placeholder="https://www.youtube.com/watch?v=..."
-            autocomplete="off"
-          />
-          <button type="submit">読込</button>
-        </form>
-        <div class="srt-picker">
-          <label for="srt-file">SRT</label>
-          <input id="srt-file" type="file" accept=".srt" />
-        </div>
-      </div>
+      <form id="video-form" novalidate>
+        <label for="video-url">YouTube URL</label>
+        <input
+          id="video-url"
+          type="url"
+          placeholder="https://www.youtube.com/watch?v=..."
+          autocomplete="off"
+        />
+      </form>
       <p id="message" class="message" role="alert"></p>
-      <p id="srt-status" class="srt-status" role="status"></p>
-      <ul id="srt-warnings" class="srt-warnings"></ul>
     </header>
     <main class="workspace">
       <section class="video-frame">
         <div id="player"></div>
       </section>
-      <aside class="subtitle-list"></aside>
+      <aside id="subtitle-panel" class="subtitle-panel">
+        <label id="srt-drop-zone" class="srt-drop-zone">
+          SRTファイルを選択 or ドラッグ
+          <input id="srt-file" class="visually-hidden" type="file" accept=".srt" />
+        </label>
+        <p id="srt-status" class="srt-status" role="status"></p>
+        <ul id="srt-warnings" class="srt-warnings"></ul>
+      </aside>
     </main>
     <script type="module" src="src/main.js"></script>
   </body>

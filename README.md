@@ -5,8 +5,8 @@ YouTube動画をダウンロードせずに、自作した字幕を字幕制作�
 
 ## できること（実装済み）
 
-- F1 動画の読み込み: YouTubeのURLを入力して「読込」（または Enter）で埋め込みプレイヤーに表示する
-- F2 字幕の読み込み: SRT ファイル（UTF-8）を選ぶと読み込み、件数・警告・エラーを表示する
+- F1 動画の読み込み: YouTubeのURLを貼り付けると自動で埋め込みプレイヤーに表示する（手で打ち込んだ場合は Enter）
+- F2 字幕の読み込み: 動画の右側の枠で SRT ファイル（UTF-8）を選択 or ドラッグすると読み込み、件数・警告・エラーを表示する
 
 ## 必要なもの
 
@@ -59,6 +59,7 @@ src/
   youtube-player.js          YouTube IFrame Player API の読み込みと操作
   utf8-decoder.js            ファイルのバイト列 → UTF-8 の文字列
   srt-parser.js              SRT の文字列 → 字幕の一覧（番号・開始・終了・本文）
+  srt-file-picker.js         選択・ドラッグされたファイル → 読み込む SRT ファイル1つ
 tests/                       node --test で動くテスト
 docs/specs/                  作業中の実装計画（完了したものは docs/specs/archive/）
 ```
