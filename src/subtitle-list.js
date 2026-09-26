@@ -1,11 +1,12 @@
 import { parseSubtitleMarkup } from "./subtitle-markup.js";
-import { formatSrtTime } from "./srt-time-format.js";
+import { formatTimecode } from "./timecode.js";
 import { isReviewed } from "./reviews.js";
 
 const ACTIVE_ROW_CLASS = "is-active";
 const REVIEWED_ROW_CLASS = "is-reviewed";
 const EMPTY_TEXT_LABEL = "（本文なし）";
 const REVIEW_MARK = "●";
+const JUMP_BUTTON_SELECTOR = ".jump-button";
 // 各行に置く入力欄。name は reviews.js の欄の名前と同じにする
 const REVIEW_FIELD_LABELS = [
   { name: "comment", label: "コメント" },
@@ -20,16 +21,34 @@ const REVIEW_FIELD_LABELS = [
  * @param {HTMLTableSectionElement} tableBody - 一覧の tbody 要素。
  * @param {import("./srt-parser.js").Subtitle[]} subtitles - 表示する字幕の一覧。
  * @param {import("./reviews.js").Reviews} reviews - 入力欄に入れておくコメント・修正案。
+ * @param {import("./timecode.js").TimecodeSetting} setting - 開始時刻を書くフレームレートと方式。
  * @returns {void}
  */
-export function renderSubtitleList(tableBody, subtitles, reviews) {
+export function renderSubtitleList(tableBody, subtitles, reviews, setting) {
   tableBody.replaceChildren(
-    ...subtitles.map((subtitle, index) => createRow(subtitle, index, reviews[subtitle.number])),
+    ...subtitles.map((subtitle, index) =>
+      createRow(subtitle, index, reviews[subtitle.number], setting),
+    ),
   );
   for (const textarea of tableBody.querySelectorAll("textarea")) {
     if (textarea.value !== "") {
       fitTextareaHeight(textarea);
     }
+  }
+}
+
+/**
+ * 一覧を作り直さずに、各行の開始時刻の文字だけを書き換える（書きかけの入力欄を残すため）。
+ *
+ * @param {HTMLTableSectionElement} tableBody - 一覧の tbody 要素。
+ * @param {import("./srt-parser.js").Subtitle[]} subtitles - 一覧を作ったときの字幕の一覧。
+ * @param {import("./timecode.js").TimecodeSetting} setting - 開始時刻を書くフレームレートと方式。
+ * @returns {void}
+ */
+export function updateStartTimes(tableBody, subtitles, setting) {
+  for (const row of tableBody.rows) {
+    const { startMs } = subtitles[Number(row.dataset.index)];
+    row.querySelector(JUMP_BUTTON_SELECTOR).textContent = formatTimecode(startMs, setting);
   }
 }
 
@@ -77,7 +96,7 @@ export function fitTextareaHeight(textarea) {
   textarea.style.height = `${textarea.scrollHeight}px`;
 }
 
-function createRow(subtitle, index, review) {
+function createRow(subtitle, index, review, setting) {
   const row = document.createElement("tr");
   row.dataset.index = String(index);
   markReviewedRow(row, isReviewed(review));
@@ -94,7 +113,7 @@ function createRow(subtitle, index, review) {
   const jumpButton = document.createElement("button");
   jumpButton.type = "button";
   jumpButton.className = "jump-button";
-  jumpButton.textContent = formatSrtTime(subtitle.startMs);
+  jumpButton.textContent = formatTimecode(subtitle.startMs, setting);
   timeCell.append(jumpButton);
 
   const textCell = document.createElement("td");

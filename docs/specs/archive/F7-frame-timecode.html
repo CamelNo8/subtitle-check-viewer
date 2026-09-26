@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>F7 フレーム単位の時刻表示 実装計画</title>
+<style>
+  :root { --fg: #1f2328; --muted: #59636e; --line: #d1d9e0; --bg: #ffffff; --soft: #f6f8fa;
+          --done: #1a7f37; --doing: #9a6700; --todo: #59636e; --warn: #9a6700; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fg: #e6edf3; --muted: #9198a1; --line: #3d444d; --bg: #0d1117; --soft: #151b23;
+            --done: #3fb950; --doing: #d29922; --todo: #9198a1; --warn: #d29922; }
+  }
+  body { font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif; color: var(--fg);
+         background: var(--bg); line-height: 1.7; max-width: 880px; margin: 0 auto; padding: 24px 16px; }
+  h1 { font-size: 1.6rem; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  h2 { font-size: 1.25rem; margin-top: 2em; border-bottom: 1px solid var(--line); padding-bottom: 4px; }
+  h3 { font-size: 1.05rem; margin-top: 1.5em; }
+  table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 0.95rem; }
+  th, td { border: 1px solid var(--line); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--soft); }
+  code, pre { font-family: ui-monospace, Menlo, monospace; background: var(--soft); border-radius: 4px; }
+  code { padding: 1px 4px; }
+  pre { padding: 12px; overflow-x: auto; }
+  .meta { color: var(--muted); }
+  .status { font-weight: bold; white-space: nowrap; }
+  .status.done { color: var(--done); }
+  .status.doing { color: var(--doing); }
+  .status.todo { color: var(--todo); }
+  .proposal { border-left: 4px solid var(--warn); padding: 4px 12px; background: var(--soft); }
+</style>
+</head>
+<body>
+
+<h1>F7 フレーム単位の時刻表示 実装計画</h1>
+<p class="meta">作成日: 2026-09-26 ／ 元資料: 仕様設計書.md（F7・時刻の表し方・企業の方への注意事項）</p>
+
+<h2>ステータス</h2>
+<p class="status done" id="overall-status">完了（2026-09-26。削除も承認済み）</p>
+
+<h2>ToDo</h2>
+<table id="todo">
+  <thead><tr><th>No.</th><th>内容</th><th>ステータス</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>【Red】ミリ秒 → タイムコードの変換のテストを書き、失敗を確認する</td><td class="status done">完了</td></tr>
+    <tr><td>2</td><td>【Green→Refactor】<code>src/timecode.js</code> を実装し、テストを通す</td><td class="status done">完了</td></tr>
+    <tr><td>3</td><td>【Red】チェック結果 CSV の時刻をタイムコードにするテストに書き換え、失敗を確認する</td><td class="status done">完了</td></tr>
+    <tr><td>4</td><td>【Green】<code>src/review-csv.js</code> をタイムコードにし、テストを通す</td><td class="status done">完了</td></tr>
+    <tr><td>5</td><td>一覧の開始時刻をタイムコードにし、選び直したら時刻だけ書き換える（<code>src/subtitle-list.js</code>）</td><td class="status done">完了</td></tr>
+    <tr><td>6</td><td>操作欄にフレームレート・方式の選択欄を置き、つなぐ（<code>index.html</code>・<code>src/main.js</code>）</td><td class="status done">完了</td></tr>
+    <tr><td>7</td><td>使わなくなる <code>src/srt-time-format.js</code> と <code>tests/srt-time-format.test.js</code> を削除する（<strong>実行前に改めて承認をもらう</strong>）</td><td class="status done">完了</td></tr>
+    <tr><td>8</td><td>ブラウザで確認（選択欄・一覧の時刻・選び直し・CSV の時刻・コメントが消えない）</td><td class="status done">完了</td></tr>
+    <tr><td>9</td><td>README と仕様設計書（未確認事項のドロップフレーム）を今の動きに合わせる</td><td class="status done">完了</td></tr>
+  </tbody>
+</table>
+
+<h2>1. 目的</h2>
+<p>一覧と CSV の時刻を、SRT の形（<code>00:00:01,000</code>）から「時:分:秒:フレーム」のタイムコード（<code>00:00:01:00</code>）に置き換える。
+フレームレートと、ドロップフレーム / ノンドロップフレームを画面で選べるようにする。</p>
+
+<h2>2. 決まったこと（質問への回答）</h2>
+<table>
+  <tr><th>項目</th><th>決定</th></tr>
+  <tr><td>方式</td><td>ドロップ・ノンドロップの両方に対応し、画面で選ぶ。最初の値はドロップ</td></tr>
+  <tr><td>選択欄の位置</td><td>画面上の操作欄、YouTube URL の横（設計書どおり）。字幕を読み込む前から選べる</td></tr>
+  <tr><td>CSV の列</td><td>足さない（6列のまま）。ドロップかどうかは区切りの「;」「:」で分かる</td></tr>
+  <tr><td>一覧の時刻</td><td>開始だけのまま、表示をタイムコードに置き換える</td></tr>
+</table>
+
+<h2>3. 画面</h2>
+<pre>
+YouTube URL [https://www.youtube.com/watch?v=...]   fps [29.97 ▼]  方式 [ドロップ（;） ▼]
+</pre>
+<ul>
+  <li>fps の選択肢: 29.97 / 30 / 23.976 / 24 / 59.94（設計書どおり、最初は 29.97）</li>
+  <li>方式の選択肢: 「ドロップ（;）」「ノンドロップ（:）」。最初は「ドロップ（;）」</li>
+  <li>ドロップフレームがあるのは 29.97 と 59.94 だけ。それ以外を選んだときは方式を「ノンドロップ（:）」にして選べなくする（灰色）。29.97・59.94 に戻したら、前に選んでいた方式に戻す</li>
+  <li>選び直すと、一覧の開始時刻がすぐ書き換わる。一覧は作り直さないので、入力中のコメント・スクロール位置はそのまま</li>
+  <li>選び直しは「コメント・修正案の変更」ではないので、ページを閉じるときなどの確認（F6）には影響しない</li>
+  <li>選んだ値はページを開き直すと最初の値に戻る（設計書: ブラウザへの自動保存はしない）</li>
+</ul>
+
+<h2>4. 計算の決まり</h2>
+<ol>
+  <li><strong>ミリ秒 → フレーム番号</strong>: 実際のフレームレートで割り、一番近いフレームに丸める（設計書どおり。ちょうど半分は切り上げ）。<br>
+    29.97 = 30000/1001、23.976 = 24000/1001、59.94 = 60000/1001 として計算する（29.97 と書いても本当は 29.97002… のため）</li>
+  <li><strong>フレーム番号 → タイムコード（ノンドロップ）</strong>: 1秒を 30 / 24 / 60 フレームとして数える。<br>
+    そのため 29.97fps では、本当の時間より少しずつ遅れて表示される（1時間で約3.6秒）。これはノンドロップの決まりどおり</li>
+  <li><strong>フレーム番号 → タイムコード（ドロップ）</strong>: ずれを直すため、毎分の最初の番号を飛ばす（29.97 は 2つ、59.94 は 4つ）。ただし 10分ごと（0, 10, 20…分）は飛ばさない。<br>
+    例: 29.97 で <code>00:00:59;29</code> の次は <code>00:01:00;02</code>（;00 と ;01 は使わない）</li>
+  <li><strong>書き方</strong>: 時・分・秒・フレームを2桁で書く。区切りはノンドロップが「:」、ドロップは最後だけ「;」（<code>00:01:00;02</code>。業界で一般的な書き方）</li>
+</ol>
+
+<h2>5. ファイル構成（追加・変更・削除分）</h2>
+<pre>
+src/
+├── timecode.js         # ミリ秒 → タイムコード、フレームレートの一覧（新規）
+├── review-csv.js       # CSV の時刻をタイムコードに（変更）
+├── subtitle-list.js    # 一覧の時刻をタイムコードに、時刻だけ書き換える関数を追加（変更）
+├── main.js             # 選択欄をつなぐ（変更）
+└── srt-time-format.js  # 使わなくなるので削除（承認後）
+tests/
+├── timecode.test.js        # 新規
+├── review-csv.test.js      # 時刻の期待値をタイムコードに書き換え（F7 で仕様が変わるため。テストを緩めるのではない）
+└── srt-time-format.test.js # 削除（承認後）
+</pre>
+
+<h2>6. 部品の仕様（<code>src/timecode.js</code>）</h2>
+<p>方式の設定は <code>{ frameRate: "29.97", isDropFrame: true }</code> の形で渡す。</p>
+<p><code>formatTimecode(ms, setting): string</code></p>
+<table>
+  <tr><th>種別</th><th>入力</th><th>結果</th></tr>
+  <tr><td>正常系</td><td>30fps・1300ms（39フレーム）</td><td><code>00:00:01:09</code></td></tr>
+  <tr><td>正常系</td><td>24fps・500ms</td><td><code>00:00:00:12</code></td></tr>
+  <tr><td>正常系</td><td>23.976 ノンドロップ・1000ms</td><td><code>00:00:01:00</code></td></tr>
+  <tr><td>正常系</td><td>29.97 ノンドロップ・3600000ms（1時間）</td><td><code>00:59:56:12</code>（ノンドロップの遅れ）</td></tr>
+  <tr><td>正常系</td><td>29.97 ドロップ・3600000ms（1時間）</td><td><code>01:00:00;00</code></td></tr>
+  <tr><td>正常系</td><td>29.97 ドロップ・1800フレーム目（60060ms）</td><td><code>00:01:00;02</code>（;00・;01 を飛ばす）</td></tr>
+  <tr><td>正常系</td><td>59.94 ドロップ・3600フレーム目（60060ms）</td><td><code>00:01:00;04</code>（4つ飛ばす）</td></tr>
+  <tr><td>境界値</td><td>29.97 ドロップ・1799フレーム目（60027ms）</td><td><code>00:00:59;29</code>（飛ばす直前）</td></tr>
+  <tr><td>境界値</td><td>29.97 ドロップ・17982フレーム目（600001ms）</td><td><code>00:10:00;00</code>（10分ちょうどは飛ばさない）</td></tr>
+  <tr><td>境界値</td><td>0ms（ノンドロップ / ドロップ）</td><td><code>00:00:00:00</code> / <code>00:00:00;00</code></td></tr>
+  <tr><td>境界値</td><td>29.97・16ms / 17ms（0.48 / 0.51 フレーム）</td><td><code>00:00:00:00</code> / <code>00:00:00:01</code>（一番近いフレームに丸める）</td></tr>
+  <tr><td>異常系</td><td>負の時刻</td><td>RangeError</td></tr>
+  <tr><td>異常系</td><td>整数でない時刻</td><td>TypeError</td></tr>
+  <tr><td>異常系</td><td>一覧にないフレームレート（例 "25"）</td><td>Error</td></tr>
+  <tr><td>異常系</td><td>30fps でドロップを指定</td><td>Error（ドロップは 29.97 / 59.94 だけ）</td></tr>
+</table>
+<p><code>supportsDropFrame(frameRate): boolean</code> — 29.97・59.94 なら true。画面で方式を選べるかの判断に使う。</p>
+<p><code>FRAME_RATES</code> — 選択肢の一覧（29.97 / 30 / 23.976 / 24 / 59.94）。画面の選択肢はここから作る。</p>
+
+<h2>7. 変わるところ（他の部品）</h2>
+<ul>
+  <li><code>buildReviewCsv(subtitles, reviews, setting)</code>: 開始時刻・終了時刻をタイムコードで書く。タイムコードには「,」がないので、時刻の欄は <code>"</code> で囲まれなくなる</li>
+  <li><code>renderSubtitleList(tableBody, subtitles, reviews, setting)</code>: 開始時刻をタイムコードで表示する</li>
+  <li><code>updateStartTimes(tableBody, subtitles, setting)</code>（新規）: 一覧を作り直さず、開始時刻の文字だけ書き換える</li>
+  <li>CSV の読み込みは番号で合わせるため変更なし。F6 で書き出した CSV（SRT の形の時刻）も読み込める</li>
+</ul>
+
+<h2>8. 動作確認の結果（2026-09-26）</h2>
+<table>
+  <tr><th>確認内容</th><th>結果</th></tr>
+  <tr><td>自動テスト・リンタ・整形チェック</td><td>169件成功（追加 21件）、指摘なし。不要になった srt-time-format のテスト 7件を削除した後は 162件成功。あわせて 29.97 ドロップで2時間分の全フレームを変換し、飛ばすべき番号が出ない・同じ番号が続かないことを確認</td></tr>
+  <tr><td>選択欄</td><td>操作欄に fps（29.97 / 30 / 23.976 / 24 / 59.94、最初は 29.97）と方式（最初はドロップ）が並んだ</td></tr>
+  <tr><td>一覧の時刻（1秒・1分0.06秒・1時間）</td><td>29.97 ドロップ: <code>00:00:01;00 / 00:01:00;02 / 01:00:00;00</code>、ノンドロップ: <code>00:00:01:00 / 00:01:00:00 / 00:59:56:12</code>、59.94 ドロップ: <code>… / 00:01:00;04 / 01:00:00;00</code></td></tr>
+  <tr><td>方式の固定</td><td>30・24 を選ぶとノンドロップに固定されて灰色になり、29.97・59.94 に戻すと前に選んでいた方式に戻った</td></tr>
+  <tr><td>コメントが消えない</td><td>入力欄にカーソルがあるまま選び直しても、書きかけの文字とカーソルが残った</td></tr>
+  <tr><td>CSV</td><td>開始・終了時刻がタイムコードになり、「"」で囲まれなくなった（<code>1,00:00:01;00,00:00:03;15,…</code>）</td></tr>
+</table>
+
+<h2>9. 今回やらないこと</h2>
+<ul>
+  <li>字幕欄や再生位置のタイムコード表示、フレーム単位のコマ送り（設計書にない。YouTube では1フレーム単位で止められない）</li>
+  <li>選んだフレームレートの保存（ブラウザへの自動保存は設計書で対象外）</li>
+</ul>
+
+</body>
+</html>

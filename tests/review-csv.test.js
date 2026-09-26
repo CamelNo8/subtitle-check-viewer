@@ -6,6 +6,8 @@ import { buildReviewCsv, makeReviewCsvFileName, restoreReviews } from "../src/re
 const BOM = "﻿";
 const HEADER = "番号,開始時刻,終了時刻,字幕,コメント,修正案\r\n";
 
+const DF_2997 = { frameRate: "29.97", isDropFrame: true };
+
 const subtitles = [
   { number: 1, startMs: 1000, endMs: 3500, text: "こんにちは" },
   { number: 2, startMs: 4000, endMs: 6000, text: "（拍手）" },
@@ -16,15 +18,21 @@ const subtitles = [
 test("字幕2件のうち1件にコメントがあるとBOMと見出しと2行のCSVになる", () => {
   const reviews = { 1: { comment: "短い", suggestion: "こんにちは！" } };
 
-  const csv = buildReviewCsv(subtitles, reviews);
+  const csv = buildReviewCsv(subtitles, reviews, DF_2997);
 
   assert.equal(
     csv,
     BOM +
       HEADER +
-      '1,"00:00:01,000","00:00:03,500",こんにちは,短い,こんにちは！\r\n' +
-      '2,"00:00:04,000","00:00:06,000",（拍手）,,\r\n',
+      "1,00:00:01;00,00:00:03;15,こんにちは,短い,こんにちは！\r\n" +
+      "2,00:00:04;00,00:00:06;00,（拍手）,,\r\n",
   );
+});
+
+test("ノンドロップを選ぶと時刻の区切りがすべてコロンになる", () => {
+  const csv = buildReviewCsv(subtitles, {}, { frameRate: "30", isDropFrame: false });
+
+  assert.ok(csv.includes("1,00:00:01:00,00:00:03:15,"));
 });
 
 test("色タグと複数行の本文はそのままCSVに入る", () => {
@@ -32,7 +40,7 @@ test("色タグと複数行の本文はそのままCSVに入る", () => {
     { number: 5, startMs: 0, endMs: 1000, text: '<font color="#FF0000">赤</font>\n二行目' },
   ];
 
-  const csv = buildReviewCsv(tagged, {});
+  const csv = buildReviewCsv(tagged, {}, DF_2997);
 
   assert.ok(csv.includes('"<font color=""#FF0000"">赤</font>\n二行目"'));
 });
@@ -40,7 +48,7 @@ test("色タグと複数行の本文はそのままCSVに入る", () => {
 // buildReviewCsv: 境界値
 
 test("字幕が0件ならBOMと見出しだけになる", () => {
-  const csv = buildReviewCsv([], {});
+  const csv = buildReviewCsv([], {}, DF_2997);
 
   assert.equal(csv, BOM + HEADER);
 });
@@ -52,7 +60,7 @@ test("書き出したCSVを読み込むと元のコメント・修正案に戻�
     1: { comment: "短い", suggestion: "こんにちは！" },
     2: { comment: "", suggestion: "（大きな拍手）" },
   };
-  const csvText = buildReviewCsv(subtitles, reviews).slice(BOM.length);
+  const csvText = buildReviewCsv(subtitles, reviews, DF_2997).slice(BOM.length);
 
   const restored = restoreReviews(csvText, subtitles);
 

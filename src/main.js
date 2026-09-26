@@ -11,7 +11,9 @@ import {
   highlightSubtitleRows,
   markReviewedRow,
   renderSubtitleList,
+  updateStartTimes,
 } from "./subtitle-list.js";
+import { FRAME_RATES, supportsDropFrame } from "./timecode.js";
 import { countReviewedSubtitles, isReviewed, updateReview } from "./reviews.js";
 import { calculateScrollTop } from "./scroll-position.js";
 import { buildReviewCsv, makeReviewCsvFileName, restoreReviews } from "./review-csv.js";
@@ -43,6 +45,8 @@ const followPlaybackCheckbox = document.getElementById("follow-playback");
 const csvExportButton = document.getElementById("csv-export-button");
 const csvImportButton = document.getElementById("csv-import-button");
 const csvFileInput = document.getElementById("csv-file");
+const frameRateSelect = document.getElementById("frame-rate");
+const dropFrameSelect = document.getElementById("drop-frame");
 
 // 読み込んだ SRT の字幕と、字幕欄に今出している字幕
 let loadedSubtitles = [];
@@ -53,6 +57,8 @@ let reviews = {};
 let hasUnexportedChanges = false;
 // 書き出すときの名前の最初の値。2回目からは前回入力した名前にする
 let csvName = INITIAL_CSV_NAME;
+// 29.97・59.94 以外ではノンドロップに固定するので、戻したときのために選んでいた方式を覚えておく
+let preferredDropFrame = dropFrameSelect.value;
 
 function showMessage(text) {
   messageArea.textContent = text;
@@ -85,6 +91,17 @@ function showSrtResult(text, warnings, isError) {
       return item;
     }),
   );
+}
+
+function readTimecodeSetting() {
+  return { frameRate: frameRateSelect.value, isDropFrame: dropFrameSelect.value === "drop" };
+}
+
+// フレームレートに合わせて方式の欄を固定・解除する
+function syncDropFrameSelect() {
+  const canDrop = supportsDropFrame(frameRateSelect.value);
+  dropFrameSelect.disabled = !canDrop;
+  dropFrameSelect.value = canDrop ? preferredDropFrame : "non-drop";
 }
 
 function hasUnexportedReviews() {
@@ -136,7 +153,7 @@ function showSubtitleList(subtitles) {
 function showReviews(newReviews) {
   reviews = newReviews;
   hasUnexportedChanges = false;
-  renderSubtitleList(subtitleListBody, loadedSubtitles, reviews);
+  renderSubtitleList(subtitleListBody, loadedSubtitles, reviews, readTimecodeSetting());
   // 行を作り直すと強調が消えるので、次の描画で今の字幕を強調し直す
   shownSubtitles = [];
 }
@@ -155,7 +172,11 @@ function exportReviewCsv() {
     return;
   }
   csvName = name.trim();
-  downloadTextFile(fileName, buildReviewCsv(loadedSubtitles, reviews), CSV_MIME_TYPE);
+  downloadTextFile(
+    fileName,
+    buildReviewCsv(loadedSubtitles, reviews, readTimecodeSetting()),
+    CSV_MIME_TYPE,
+  );
   hasUnexportedChanges = false;
   showSrtResult(
     `${fileName} を書き出しました（コメント・修正案 ${countReviewedSubtitles(reviews)}件）`,
@@ -244,6 +265,10 @@ function updateActiveSubtitles() {
     showActiveSubtitles(activeSubtitles);
     shownSubtitles = activeSubtitles;
   }
+  frameRateSelect.replaceChildren(
+    ...FRAME_RATES.map((frameRate) => new Option(frameRate, frameRate)),
+  );
+  syncDropFrameSelect();
   requestAnimationFrame(updateActiveSubtitles);
 }
 
@@ -338,6 +363,17 @@ window.addEventListener("beforeunload", (event) => {
   }
 });
 
+// 選び直しはコメント・修正案の変更ではないので、書き出し後の確認には影響させない
+frameRateSelect.addEventListener("change", () => {
+  syncDropFrameSelect();
+  updateStartTimes(subtitleListBody, loadedSubtitles, readTimecodeSetting());
+});
+
+dropFrameSelect.addEventListener("change", () => {
+  preferredDropFrame = dropFrameSelect.value;
+  updateStartTimes(subtitleListBody, loadedSubtitles, readTimecodeSetting());
+});
+
 csvExportButton.addEventListener("click", exportReviewCsv);
 
 // 見た目のそろったボタンから、隠してあるファイル選択を開く
@@ -362,4 +398,8 @@ followPlaybackCheckbox.addEventListener("change", () => {
   }
 });
 
+frameRateSelect.replaceChildren(
+  ...FRAME_RATES.map((frameRate) => new Option(frameRate, frameRate)),
+);
+syncDropFrameSelect();
 requestAnimationFrame(updateActiveSubtitles);

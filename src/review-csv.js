@@ -1,5 +1,5 @@
 import { formatCsv, parseCsv } from "./csv.js";
-import { formatSrtTime } from "./srt-time-format.js";
+import { formatTimecode } from "./timecode.js";
 
 // Excel が UTF-8 だと気づけるよう、先頭に付ける印
 const BOM = "﻿";
@@ -25,13 +25,14 @@ const INVALID_FILE_NAME_CHARACTERS = /[\\/:*?"<>|]/;
  *
  * @param {import("./srt-parser.js").Subtitle[]} subtitles - 読み込んだ字幕の一覧。
  * @param {import("./reviews.js").Reviews} reviews - コメント・修正案の記録。
+ * @param {import("./timecode.js").TimecodeSetting} setting - 時刻を書くフレームレートと方式。
  * @returns {string} BOM・見出し・字幕の行からなる CSV の文字。
  */
-export function buildReviewCsv(subtitles, reviews) {
+export function buildReviewCsv(subtitles, reviews, setting) {
   const rows = subtitles.map(({ number, startMs, endMs, text }) => [
     String(number),
-    formatSrtTime(startMs),
-    formatSrtTime(endMs),
+    formatTimecode(startMs, setting),
+    formatTimecode(endMs, setting),
     text,
     reviews[number]?.comment ?? "",
     reviews[number]?.suggestion ?? "",
