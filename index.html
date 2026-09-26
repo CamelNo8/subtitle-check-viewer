@@ -15,20 +15,11 @@
         padding: 12px 16px;
         border-bottom: 1px solid #d1d9e0;
       }
-      .controls {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-        align-items: center;
-      }
       .controls form {
         display: flex;
         max-width: 100%;
         gap: 8px;
         align-items: center;
-      }
-      .controls form + label {
-        margin-left: 16px;
       }
       .controls label {
         white-space: nowrap;
@@ -40,8 +31,7 @@
         font-size: 1rem;
       }
       .message {
-        flex-basis: 100%;
-        margin: 0;
+        margin: 8px 0 0;
         color: #cf222e;
       }
       .message:empty {
@@ -269,13 +259,6 @@
           autocomplete="off"
         />
       </form>
-      <label for="frame-rate">fps</label>
-      <select id="frame-rate"></select>
-      <label for="drop-frame">方式</label>
-      <select id="drop-frame">
-        <option value="drop">ドロップ（;）</option>
-        <option value="non-drop">ノンドロップ（:）</option>
-      </select>
       <p id="message" class="message" role="alert"></p>
     </header>
     <main class="workspace">

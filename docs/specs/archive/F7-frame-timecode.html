@@ -37,6 +37,8 @@
 
 <h2>ステータス</h2>
 <p class="status done" id="overall-status">完了（2026-09-26。削除も承認済み）</p>
+<p class="proposal">追記（2026-09-27）: クライアントの指示で、画面の fps・方式の選択欄を一旦取り外し、29.97fps ドロップフレームに固定した（docs/specs/remove-frame-rate-select-and-publish.html）。
+あわせて、この F7 のコミットでは選択肢を作る処理が描画のたびに動く場所に入っており、選んだ値がすぐ 29.97 に戻る不具合があったことが分かった（選択欄の取り外しでなくなった）。</p>
 
 <h2>ToDo</h2>
 <table id="todo">
