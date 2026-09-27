@@ -36,7 +36,7 @@
 <p class="meta">作成日: 2026-09-27 ／ 元資料: クライアントの指示（2026-09-27）、F7 仕様書、仕様設計書.md（技術選定: GitHub Pages）</p>
 
 <h2>ステータス</h2>
-<p class="status doing" id="overall-status">実装中（クライアントの指示で着手）</p>
+<p class="status done" id="overall-status">完了（2026-09-27）</p>
 
 <h2>ToDo</h2>
 <table id="todo">
@@ -46,9 +46,9 @@
     <tr><td>2</td><td>時刻を 29.97 ドロップに固定し、選び直しの処理と <code>updateStartTimes</code> を消す（<code>src/main.js</code>・<code>src/subtitle-list.js</code>）</td><td class="status done">完了</td></tr>
     <tr><td>3</td><td>テスト・リンタ・ブラウザで確認</td><td class="status done">完了</td></tr>
     <tr><td>4</td><td>README・仕様設計書を今の動きに合わせ、公開 URL を README に書く</td><td class="status done">完了</td></tr>
-    <tr><td>5</td><td>コミットし、<code>git push</code>（クライアント承認済み）</td><td class="status todo">未着手</td></tr>
-    <tr><td>6</td><td>【クライアント】GitHub の Settings → Pages で main ブランチの / を公開する</td><td class="status todo">未着手</td></tr>
-    <tr><td>7</td><td>公開 URL でアプリが開き、動くことを確認する</td><td class="status todo">未着手</td></tr>
+    <tr><td>5</td><td>コミットし、<code>git push</code>（クライアント承認済み）</td><td class="status done">完了</td></tr>
+    <tr><td>6</td><td>【クライアント】GitHub の Settings → Pages で main ブランチの / を公開する</td><td class="status done">完了</td></tr>
+    <tr><td>7</td><td>公開 URL でアプリが開き、動くことを確認する</td><td class="status done">完了</td></tr>
   </tbody>
 </table>
 
@@ -70,6 +70,7 @@
 <ul>
   <li>自動テスト 162件成功、リンタ・整形チェック指摘なし</li>
   <li>ブラウザ: 操作欄は YouTube URL だけになり、一覧の開始時刻は <code>00:00:01;00</code> / <code>00:01:00;02</code>、CSV も同じ形。コンソールのエラーなし</li>
+  <li>公開（クライアントが Pages を設定）: <code>https://camelno8.github.io/subtitle-check-viewer/</code> がページ・スクリプトとも 200 で返り、実際に開いて SRT の読み込み（時刻は 29.97 ドロップ）、YouTube 動画の読み込み、一覧のクリックでの移動、字幕欄の表示と行の強調が動いた。コンソールのエラーなし</li>
   <li>実装中に、F7 のコミットの不具合（選択肢を作る処理が描画のたびに動いていた）が見つかった。この取り外しで一緒に消えた</li>
 </ul>
 
