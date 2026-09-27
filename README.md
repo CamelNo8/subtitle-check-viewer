@@ -1,7 +1,7 @@
 # 字幕チェック用Webアプリ
 
 YouTube動画をダウンロードせずに、自作した字幕を字幕制作企業にチェックしてもらうためのWebアプリ。
-設計の全体像は [仕様設計書.md](仕様設計書.md)、機能ごとの実装計画は [docs/specs/](docs/specs/) を参照。
+設計の全体像（`仕様設計書.md`）と機能ごとの実装計画（`docs/specs/`）は手元だけで管理し、リポジトリには含めていない。
 
 ## 公開 URL
 
@@ -46,7 +46,7 @@ YouTube からはフレームレートを取得できないため、アプリは
 
 計算の部品 `src/timecode.js` は 29.97 / 30 / 23.976 / 24 / 59.94 とノンドロップにも対応済み（テストあり）。
 画面の選択欄は一旦取り外しており（2026-09-27）、`src/main.js` の `TIMECODE_SETTING` で固定している。
-戻すときは [F7 の仕様書](docs/specs/archive/F7-frame-timecode.html) を参照する。
+戻すときは F7 の仕様書（手元の `docs/specs/archive/F7-frame-timecode.html`）を参照する。
 F7 で入れた選択欄には、選択肢を作る処理が描画のたびに動き、選んだ値がすぐ 29.97 に戻る不具合があったので、戻すときは初期化を1回だけにすること。
 
 ## 必要なもの
@@ -112,5 +112,5 @@ src/
   review-csv.js              字幕＋コメント → チェック結果の CSV、CSV → コメント・修正案と警告、ファイル名
   file-download.js           文字をファイルにしてダウンロードさせる
 tests/                       node --test で動くテスト
-docs/specs/                  作業中の実装計画（完了したものは docs/specs/archive/）
+docs/specs/                  実装計画（手元だけ。完了したものは docs/specs/archive/）
 ```
