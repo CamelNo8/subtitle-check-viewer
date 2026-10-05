@@ -5,15 +5,45 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>字幕チェック</title>
     <style>
+      /* 色は名前で持ち、パソコンの設定がダークのときだけ中身を差し替える */
+      :root {
+        color-scheme: light dark;
+        --color-text: #1f2328;
+        --color-background: #ffffff;
+        --color-border: #d1d9e0;
+        --color-text-muted: #59636e;
+        --color-text-faint: #8c959f;
+        --color-surface: #f6f8fa;
+        --color-accent: #0969da;
+        --color-accent-background: #ddf4ff;
+        --color-error: #cf222e;
+        --color-warning: #9a6700;
+        --color-active-row: #fff8c5;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --color-text: #e6edf3;
+          --color-background: #0d1117;
+          --color-border: #3d444d;
+          --color-text-muted: #9198a1;
+          --color-text-faint: #7d8590;
+          --color-surface: #151b23;
+          --color-accent: #4493f8;
+          --color-accent-background: #121d2f;
+          --color-error: #f85149;
+          --color-warning: #d29922;
+          --color-active-row: #332800;
+        }
+      }
       body {
         margin: 0;
         font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
-        color: #1f2328;
-        background: #ffffff;
+        color: var(--color-text);
+        background: var(--color-background);
       }
       .controls {
         padding: 12px 16px;
-        border-bottom: 1px solid #d1d9e0;
+        border-bottom: 1px solid var(--color-border);
       }
       .controls form {
         display: flex;
@@ -32,7 +62,7 @@
       }
       .message {
         margin: 8px 0 0;
-        color: #cf222e;
+        color: var(--color-error);
       }
       .message:empty {
         display: none;
@@ -87,18 +117,18 @@
         min-height: 160px;
         align-items: center;
         justify-content: center;
-        border: 2px dashed #8c959f;
+        border: 2px dashed var(--color-text-faint);
         border-radius: 8px;
-        color: #59636e;
+        color: var(--color-text-muted);
         text-align: center;
         cursor: pointer;
       }
       .srt-drop-zone:hover,
       .srt-drop-zone:focus-within,
       .srt-drop-zone.is-dragover {
-        border-color: #0969da;
-        background: #ddf4ff;
-        color: #0969da;
+        border-color: var(--color-accent);
+        background: var(--color-accent-background);
+        color: var(--color-accent);
       }
       /* 見た目は枠で出すので本来の入力欄は隠す。キーボード操作と読み上げのために要素は残す */
       .visually-hidden {
@@ -116,7 +146,7 @@
         display: none;
       }
       .srt-status.is-error {
-        color: #cf222e;
+        color: var(--color-error);
       }
       /* 警告が多くても一覧の場所を奪わないよう、3行ほどでスクロールさせる */
       .srt-warnings {
@@ -124,7 +154,7 @@
         max-height: 4.5em;
         margin: 4px 0 0;
         overflow: auto;
-        color: #9a6700;
+        color: var(--color-warning);
       }
       .srt-warnings:empty {
         display: none;
@@ -155,7 +185,7 @@
         min-height: 0;
         margin-top: 4px;
         overflow: auto;
-        border: 1px solid #d1d9e0;
+        border: 1px solid var(--color-border);
       }
       .subtitle-list {
         width: 100%;
@@ -165,14 +195,14 @@
       .subtitle-list th {
         position: sticky;
         top: 0;
-        background: #f6f8fa;
+        background: var(--color-surface);
         text-align: left;
         white-space: nowrap;
       }
       .subtitle-list th,
       .subtitle-list td {
         padding: 4px 8px;
-        border-bottom: 1px solid #d1d9e0;
+        border-bottom: 1px solid var(--color-border);
         vertical-align: top;
       }
       .subtitle-list td:nth-child(-n + 2) {
@@ -182,11 +212,11 @@
         white-space: pre-line;
       }
       .subtitle-text.is-empty {
-        color: #8c959f;
+        color: var(--color-text-faint);
       }
       .review-mark {
         margin-left: 4px;
-        color: #0969da;
+        color: var(--color-accent);
         visibility: hidden;
       }
       .subtitle-list tr.is-reviewed .review-mark {
@@ -202,7 +232,7 @@
         grid-template-columns: 4em minmax(0, 1fr);
         gap: 6px;
         align-items: start;
-        color: #59636e;
+        color: var(--color-text-muted);
         font-size: 0.8rem;
         cursor: text;
       }
@@ -210,9 +240,9 @@
         box-sizing: border-box;
         width: 100%;
         padding: 2px 6px;
-        border: 1px solid #d1d9e0;
+        border: 1px solid var(--color-border);
         border-radius: 4px;
-        color: #1f2328;
+        color: var(--color-text);
         font: inherit;
         font-size: 0.9rem;
         line-height: 1.4;
@@ -223,10 +253,10 @@
         cursor: pointer;
       }
       .subtitle-list tbody tr:hover {
-        background: #f6f8fa;
+        background: var(--color-surface);
       }
       .subtitle-list tbody tr.is-active {
-        background: #fff8c5;
+        background: var(--color-active-row);
       }
       /* 狭い画面では横に並べると一覧の高さが足りないので、動画の下に並べる */
       @media (max-width: 900px) {
@@ -241,7 +271,7 @@
         padding: 0;
         border: 0;
         background: none;
-        color: #0969da;
+        color: var(--color-accent);
         font: inherit;
         font-variant-numeric: tabular-nums;
         cursor: pointer;
