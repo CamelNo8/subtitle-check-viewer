@@ -19,7 +19,9 @@ import { downloadTextFile } from "./file-download.js";
 
 const PLAYER_ELEMENT_ID = "player";
 const NO_VIDEO_MESSAGE = "先に YouTube の URL を貼り付けてください。";
-const SHIFT_JIS_NOTE = "（Shift_JIS として読み込みました）";
+const SHIFT_JIS_NOTE =
+  "（Shift_JIS として読み込みました。" +
+  "文字化けしている場合は、UTF-8 か Shift_JIS で保存し直してください）";
 const CSV_FILE_NAME_PROMPT = "ファイル名を入力してください（後ろに _check.csv が付きます）";
 const INITIAL_CSV_NAME = "name";
 const CSV_MIME_TYPE = "text/csv";
@@ -87,7 +89,7 @@ function showSrtResult(text, warnings, isError) {
   );
 }
 
-// Excel 保存で一部の文字が「?」に変わることがあるので、Shift_JIS で読んだことを知らせる
+// 別の文字コードを Shift_JIS と見間違えても気づけないので、利用者に見直しをうながす
 function describeEncoding(encoding) {
   return encoding === "Shift_JIS" ? SHIFT_JIS_NOTE : "";
 }
