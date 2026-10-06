@@ -1,7 +1,7 @@
 import { extractVideoId } from "./youtube-url.js";
 import { describePlayerError } from "./player-error-message.js";
 import { getCurrentTimeMs, seekToMs, showVideo } from "./youtube-player.js";
-import { decodeUtf8 } from "./utf8-decoder.js";
+import { decodeText } from "./text-decoder.js";
 import { parseSrt } from "./srt-parser.js";
 import { pickSrtFile } from "./srt-file-picker.js";
 import { findActiveSubtitles } from "./active-subtitles.js";
@@ -19,9 +19,7 @@ import { downloadTextFile } from "./file-download.js";
 
 const PLAYER_ELEMENT_ID = "player";
 const NO_VIDEO_MESSAGE = "先に YouTube の URL を貼り付けてください。";
-const CSV_NOT_UTF8_MESSAGE =
-  "文字コードが UTF-8 ではないため読み込めません。" +
-  "Excel で上書き保存した CSV は読めないので、アプリで書き出した CSV をそのまま選んでください。";
+const SHIFT_JIS_NOTE = "（Shift_JIS として読み込みました）";
 const CSV_FILE_NAME_PROMPT = "ファイル名を入力してください（後ろに _check.csv が付きます）";
 const INITIAL_CSV_NAME = "name";
 const CSV_MIME_TYPE = "text/csv";
@@ -89,6 +87,11 @@ function showSrtResult(text, warnings, isError) {
   );
 }
 
+// Excel 保存で一部の文字が「?」に変わることがあるので、Shift_JIS で読んだことを知らせる
+function describeEncoding(encoding) {
+  return encoding === "Shift_JIS" ? SHIFT_JIS_NOTE : "";
+}
+
 function hasUnexportedReviews() {
   return hasUnexportedChanges && countReviewedSubtitles(reviews) > 0;
 }
@@ -105,8 +108,11 @@ function confirmDiscardReviews(question) {
 
 async function loadSubtitleFile(file) {
   let parsed;
+  let encoding;
   try {
-    parsed = parseSrt(decodeUtf8(await file.arrayBuffer()));
+    const decoded = decodeText(await file.arrayBuffer());
+    encoding = decoded.encoding;
+    parsed = parseSrt(decoded.text);
   } catch (error) {
     // 読み込みに失敗しただけでコメントが消えないよう、今の一覧とコメントは残す
     showSrtResult(`${file.name}: ${error.message}`, [], true);
@@ -122,7 +128,11 @@ async function loadSubtitleFile(file) {
   }
   const { subtitles, warnings } = parsed;
   showSubtitleList(subtitles);
-  showSrtResult(`${file.name}: ${subtitles.length}件の字幕を読み込みました`, warnings, false);
+  showSrtResult(
+    `${file.name}: ${subtitles.length}件の字幕を読み込みました${describeEncoding(encoding)}`,
+    warnings,
+    false,
+  );
 }
 
 // 字幕を保持して一覧を作り直す（コメント・修正案は空に戻る）
@@ -171,17 +181,12 @@ function exportReviewCsv() {
 }
 
 async function loadReviewFile(file) {
-  let csvText;
-  try {
-    csvText = decodeUtf8(await file.arrayBuffer());
-  } catch {
-    // decodeUtf8 のメッセージは SRT 向けなので、CSV 向けの説明に置き換える
-    showSrtResult(`${file.name}: ${CSV_NOT_UTF8_MESSAGE}`, [], true);
-    return;
-  }
   let restored;
+  let encoding;
   try {
-    restored = restoreReviews(csvText, loadedSubtitles);
+    const decoded = decodeText(await file.arrayBuffer());
+    encoding = decoded.encoding;
+    restored = restoreReviews(decoded.text, loadedSubtitles);
   } catch (error) {
     // 読み込みに失敗しただけでコメントが消えないよう、今のコメントは残す
     showSrtResult(`${file.name}: ${error.message}`, [], true);
@@ -197,7 +202,8 @@ async function loadReviewFile(file) {
   }
   showReviews(restored.reviews);
   showSrtResult(
-    `${file.name}: コメント・修正案 ${countReviewedSubtitles(reviews)}件を読み込みました`,
+    `${file.name}: コメント・修正案 ${countReviewedSubtitles(reviews)}件を読み込みました` +
+      describeEncoding(encoding),
     restored.warnings,
     false,
   );
